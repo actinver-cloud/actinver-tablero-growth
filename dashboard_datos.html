@@ -357,8 +357,8 @@ html,body{background:var(--bg-deep);color:var(--text-pri);font-family:'Open Sans
   <div class="resultados-wrap" id="resultadosWrap">
 
     <div class="res-title-row">
-      <div class="res-main-title">Presupuesto 2026 y resultados acumulados a Abril</div>
-      <div class="res-subtitle">Actinver · Segmento Patrimonial · Cierre Abril 2026</div>
+      <div class="res-main-title">Presupuesto 2026 y resultados acumulados a Mayo</div>
+      <div class="res-subtitle">Actinver · Segmento Patrimonial · Cierre Mayo 2026</div>
     </div>
 
     <!-- TOGGLE -->
@@ -372,7 +372,8 @@ html,body{background:var(--bg-deep);color:var(--text-pri);font-family:'Open Sans
           <option value="0">Enero</option>
           <option value="1">Febrero</option>
           <option value="2">Marzo</option>
-          <option value="3" selected>Abril</option>
+          <option value="3">Abril</option>
+          <option value="4" selected>Mayo</option>
         </select>
       </div>
     </div>
@@ -398,7 +399,7 @@ html,body{background:var(--bg-deep);color:var(--text-pri);font-family:'Open Sans
     <div class="res-comments-wrap">
       <div class="res-comments-header">
         <div class="res-comments-title">Comentarios</div>
-        <div class="res-comments-period">Acumulado a Abril 2026</div>
+        <div class="res-comments-period">Acumulado a Mayo 2026</div>
       </div>
       <div class="res-comments-body" id="resComments">
         <div class="res-comment-item">
@@ -826,96 +827,89 @@ function setSection(s){
 }
 
 // ── RESULTS TABLE ─────────────────────────────────────────────────────────────
-let resView = 'mes', resMonthIdx = 3;
+let resView = 'mes', resMonthIdx = 4;
 
-const MONTHS_RES = ['Enero','Febrero','Marzo','Abril'];
+const MONTHS_RES = ['Enero','Febrero','Marzo','Abril','Mayo'];
 
 const RES_DATA = [
   {
     section:'Negocio', cat:'Clientes', metric:'Clientes', bold:true,
     c2025: 107863,
-    ppto:  [108132, 108375, 108644, 108905], pptoAcum: 111033,
-    real:  [106853, 106748, 107036, 106532], realAcum: 106532,
-    cumpl: [0.9882, 0.9850, 0.9852, 0.9782], cumplAcum: 0.9782,
+    ppto:  [108132, 108375, 108644, 108905, 109174], pptoAcum: 111033,
+    real:  [106853, 106748, 107036, 106532, 105582], realAcum: 105582,
+    cumpl: [0.9882, 0.9850, 0.9852, 0.9782, 0.9671], cumplAcum: 0.9671,
   },
   {
     section:'', cat:'', metric:'Clientes del segmento',
     c2025: 74260,
-    ppto:  [75132, 75919, 76791, 77636], pptoAcum: 84531,
-    real:  [73782, 73697, 73993, 73995], realAcum: 73995,
-    cumpl: [0.9820, 0.9707, 0.9636, 0.9531], cumplAcum: 0.9531,
-  },
-  {
-    section:'', cat:'', metric:'Saldo prom. del segmento ($)', fmt:'mdp',
-    c2025: null,
-    ppto:  [null,null,null,null], pptoAcum: null,
-    real:  [737592,747684,762411,779574], realAcum: null,
-    cumpl: [null,null,null,null], cumplAcum: null,
+    ppto:  [75132, 75919, 76791, 77636, 78508], pptoAcum: 84531,
+    real:  [73782, 73697, 73993, 73995, 73591], realAcum: 73591,
+    cumpl: [0.9820, 0.9707, 0.9636, 0.9531, 0.9374], cumplAcum: 0.9374,
   },
   {
     section:'', cat:'Fondos', metric:'AUM ($M)', bold:true,
     c2025: 46388,
-    ppto:  [46863, 47291, 47754, 48203], pptoAcum: 51757,
-    real:  [47625, 48036, 48973, 50056], realAcum: 50056,
-    cumpl: [1.0163, 1.0158, 1.0255, 1.0384], cumplAcum: 1.0384,
+    ppto:  [46863, 47291, 47754, 48203, 48869], pptoAcum: 51757,
+    real:  [47625, 48036, 48973, 50056, 50451], realAcum: 50451,
+    cumpl: [1.0163, 1.0158, 1.0255, 1.0384, 1.0324], cumplAcum: 1.0324,
   },
   {
     section:'', cat:'', metric:'NNF ($M)',
     c2025: 302,
-    ppto:  [295, 266, 295, 286], pptoAcum: 3474,
-    real:  [578, 449, 179, 439], realAcum: 1206,
-    cumpl: [1.9604, 1.6852, 0.6052, 1.5364], cumplAcum: 1.0560,
+    ppto:  [295, 266, 295, 286, 295], pptoAcum: 3474,
+    real:  [578, 449, 179, 439, 316], realAcum: 1522,
+    cumpl: [1.9604, 1.6852, 0.6052, 1.5364, 1.0721], cumplAcum: 1.0560,
   },
   {
     section:'Producto', cat:'Crédito', metric:'Créditos nuevos (#)', bold:true,
     c2025: 29,
-    ppto:  [40, 40, 330, 330], pptoAcum: 3360,
-    real:  [50, 85, 96, 99], realAcum: 231,
-    cumpl: [1.25, 2.125, 0.2909, 0.30], cumplAcum: 0.3122,
+    ppto:  [40, 40, 330, 330, 330], pptoAcum: 3360,
+    real:  [50, 85, 96, 99, 113], realAcum: 344,
+    cumpl: [1.25, 2.125, 0.2909, 0.30, 0.3424], cumplAcum: 0.3122,
   },
   {
     section:'', cat:'', metric:'Cartera de crédito ($M)',
     c2025: 268,
-    ppto:  [280, 292, 424, 556], pptoAcum: 1612,
-    real:  [274, 303, 303, 327], realAcum: 327,
-    cumpl: [0.9770, 1.0360, 0.7136, 0.5869], cumplAcum: null,
+    ppto:  [280, 292, 424, 556, 688], pptoAcum: 1612,
+    real:  [274, 303, 303, 327, 333], realAcum: 333,
+    cumpl: [0.9770, 1.0360, 0.7136, 0.5869, 0.4841], cumplAcum: null,
     cumplAcumNote: true,
   },
   {
     section:'', cat:'Seguros', metric:'Primas nuevas pagadas ($M)', bold:true, fmt:'dec1',
     c2025: 5.6,
-    ppto:  [2.94, 4.00, 6.01, 21.99], pptoAcum: 210.9,
-    real:  [3.4, 4.51, 3.3, 3.75], realAcum: 11.21,
-    cumpl: [1.1565, 1.1263, 0.5494, 0.1705], cumplAcum: 0.3208,
+    ppto:  [2.94, 4.00, 6.01, 21.99, 21.99], pptoAcum: 210.9,
+    real:  [3.4, 4.51, 3.3, 3.75, null], realAcum: 11.21,
+    cumpl: [1.1565, 1.1263, 0.5494, 0.1705, null], cumplAcum: 0.3208,
   },
   {
     section:'', cat:'', metric:'Pólizas nuevas (#)',
     c2025: 343,
-    ppto:  [250, 250, 2760, 2760], pptoAcum: 28100,
-    real:  [659, 462, 364, 329], realAcum: 1485,
-    cumpl: [2.636, 1.848, 0.1319, 0.1192], cumplAcum: 0.2467,
+    ppto:  [250, 250, 2760, 2760, 2760], pptoAcum: 28100,
+    real:  [659, 462, 364, 329, 559], realAcum: 2044,
+    cumpl: [2.636, 1.848, 0.1319, 0.1192, 0.2025], cumplAcum: 0.2467,
   },
   {
     section:'Digital', cat:'Adopción Digital', metric:'Enrolados (#)', bold:true,
-    c2025: null, ppto:[null,null,null,null], pptoAcum:null,
-    real:[null,null,null,null], realAcum:null, cumpl:[null,null,null,null], cumplAcum:null,
+    c2025: null, ppto:[null,null,null,null,null], pptoAcum:null,
+    real:[null,null,null,null,null], realAcum:null, cumpl:[null,null,null,null,null], cumplAcum:null,
   },
   {
     section:'', cat:'', metric:'Activos (#)',
-    c2025: null, ppto:[null,null,null,null], pptoAcum:null,
-    real:[null,null,null,null], realAcum:null, cumpl:[null,null,null,null], cumplAcum:null,
+    c2025: null, ppto:[null,null,null,null,null], pptoAcum:null,
+    real:[null,null,null,null,null], realAcum:null, cumpl:[null,null,null,null,null], cumplAcum:null,
   },
   {
     section:'', cat:'', metric:'Transaccionales (#)',
-    c2025: null, ppto:[null,null,null,null], pptoAcum:null,
-    real:[null,null,null,null], realAcum:null, cumpl:[null,null,null,null], cumplAcum:null,
+    c2025: null, ppto:[null,null,null,null,null], pptoAcum:null,
+    real:[null,null,null,null,null], realAcum:null, cumpl:[null,null,null,null,null], cumplAcum:null,
   },
   {
     section:'', cat:'Resultados', metric:'UTOPE ($M)', bold:true, fmt:'dec1',
     c2025: 1836,
-    ppto:  [24.1, 20.0, 25.6, 25.4], pptoAcum: 2112,
-    real:  [24, 25, 31, 27], realAcum: 107,
-    cumpl: [0.9959, 1.2515, 1.2097, 1.0615], cumplAcum: 1.1247,
+    ppto:  [24.1, 20.0, 25.6, 25.4, 27.6], pptoAcum: 2112,
+    real:  [24, 25, 31, 27, null], realAcum: 107,
+    cumpl: [0.9959, 1.2515, 1.2097, 1.0615, null], cumplAcum: 1.1247,
   },
 ];
 
@@ -950,7 +944,7 @@ function buildResTable(){
 
   // Update header
   const head=document.getElementById('resTableHead');
-  const period = resView==='mes' ? MONTHS_RES[resMonthIdx] : 'Acum. Abril';
+  const period = resView==='mes' ? MONTHS_RES[resMonthIdx] : 'Acum. Mayo';
   head.innerHTML=`
     <th class="th-section"></th>
     <th class="th-metric"></th>
