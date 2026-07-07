@@ -824,18 +824,25 @@ function dailyDateLabel(fecha){ const [y,mm,dd] = fecha.split('-'); return dd+' 
 /* ============================================================
    NEGOCIOS
    ============================================================ */
+/* Personal Actinver se quitó por completo del tablero (ya no es un
+   negocio seleccionable ni entra en "Todos", ni en las comparaciones
+   "por negocio" de Clientes/AUM/Fondos/Análisis/Insights). "Todos
+   (Consolidado Total)" = Privada + Patrimonial + WM Consolidado (Wealth +
+   Externos + Fiduciario), mismo criterio que ya usaba la tabla
+   "Indicadores Detallados" (RESUMEN_IDS). Sus datos siguen en RAW_DATA/
+   BUDGET_DATA por si se necesitan más adelante, pero ninguna vista del
+   tablero los referencia ya. */
 const NEGOCIOS = [
-  {id:'all', label:'Todos (Consolidado Total)', members:['BANCA PRIVADA','PATRIMONIAL','Personal Actinver','WEALTH MANAGMENT','Externos','Fiduciario'], color:'#7ba3f5'},
+  {id:'all', label:'Todos (Consolidado Total)', members:['BANCA PRIVADA','PATRIMONIAL','WEALTH MANAGMENT','Externos','Fiduciario'], color:'#7ba3f5'},
   {id:'bp',  label:'Banca Privada', members:['BANCA PRIVADA'], color:'#5b8def'},
   {id:'pat', label:'Patrimonial', members:['PATRIMONIAL'], color:'#b7a4e8'},
-  {id:'pa',  label:'Personal Actinver', members:['Personal Actinver'], color:'#eaa85e'},
   {id:'wmc', label:'Wealth Management (Consolidado)', members:['WEALTH MANAGMENT','Externos','Fiduciario'], color:'#5eead4'},
   {id:'wm',  label:'· Wealth Management (solo)', members:['WEALTH MANAGMENT'], color:'#4fc9ae'},
   {id:'ext', label:'· Externos', members:['Externos'], color:'#6bb8f5'},
   {id:'fid', label:'· Fiduciario', members:['Fiduciario'], color:'#9aa3f0'},
 ];
 const NEG_BY_ID = Object.fromEntries(NEGOCIOS.map(n=>[n.id,n]));
-const RANK_IDS = ['bp','pat','pa','wmc']; // grupos no traslapados que suman el total (usado en pestañas de detalle)
+const RANK_IDS = ['bp','pat','wmc']; // grupos no traslapados que suman el total (usado en pestañas de detalle)
 const RESUMEN_IDS = ['bp','pat','wmc']; // apertura pedida para el Resumen Ejecutivo: Privada, Patrimonial, WM (Wealth+Externos+Fiduciario)
 
 function negocio(id){ return NEG_BY_ID[id] || NEGOCIOS[0]; }
@@ -2318,12 +2325,16 @@ function groupedCardHTML(mainKey, subgroups, opts){
   const metaKey = opts.metaMetricKey || mainKey;
   const mm = METRICS[metaKey];
 
-  function cumpBadgeFor(metricKey){
+  // Convención del tablero: cumplimiento SIEMPRE se muestra como
+  // Real/PPTO (% cumplimiento), nunca solo el %. Aquí el "Real" ya se ve
+  // en el valor de la fila justo a la izquierda del badge, así que el
+  // badge completa con "/ PPTO (%)" en vez de repetir el real dos veces.
+  function cumpBadgeFor(metricKey, unit){
     if(!metricKey) return '';
     const hl = metaRowData(metricKey, state.negocio, state.month, state.metaMode);
     if(!hl || hl.meta==null || hl.cumplimiento==null) return '';
     const c = hl.cumplimiento>=98 ? 'var(--green)' : hl.cumplimiento>=90 ? 'var(--gold)' : 'var(--red)';
-    return `<span class="cump-badge" style="color:${c};">${fmtNum(hl.cumplimiento,1)}% PPTO</span>`;
+    return `<span class="cump-badge" style="color:${c};">/ ${fmtUnit(hl.meta,unit)} (${fmtNum(hl.cumplimiento,1)}%)</span>`;
   }
   // Una fila (o el total) que sea exactamente la métrica del bloque grande
   // de PPTO de arriba no se repite aquí abajo: ya se ve con lujo de detalle
@@ -2331,13 +2342,13 @@ function groupedCardHTML(mainKey, subgroups, opts){
   const subHtml = subgroups.map(sg=>{
     const rows = sg.rows.map(r=>{
       if(r.metricKey && r.metricKey===metaKey) return '';
-      const badge = cumpBadgeFor(r.metricKey);
+      const badge = cumpBadgeFor(r.metricKey, r.unit||m.unit);
       const cls = r.metricKey ? 'kpi-subrow kpi-subrow-hl' : 'kpi-subrow';
       return `<div class="${cls}"><span class="k">${r.label}</span><span class="v-wrap"><span class="v" style="color:${r.color||'var(--text)'}">${r.prefix||''}${fmtUnit(r.value, r.unit||m.unit)}</span>${badge}</span></div>`;
     }).join('');
     let totalRow = '';
     if(sg.total && !(sg.total.metricKey && sg.total.metricKey===metaKey)){
-      const badge = cumpBadgeFor(sg.total.metricKey);
+      const badge = cumpBadgeFor(sg.total.metricKey, sg.total.unit||m.unit);
       const cls = sg.total.metricKey ? 'kpi-subrow kpi-subrow-hl' : 'kpi-subrow';
       totalRow = `<div class="${cls}" style="border-top:1px dashed var(--border-soft);margin-top:4px;padding-top:6px;"><span class="k" style="font-weight:700;color:var(--text);">${sg.total.label}</span><span class="v-wrap"><span class="v" style="color:${sg.total.value>=0?'var(--green)':'var(--red)'}">${sg.total.value>=0?'+':''}${fmtUnit(sg.total.value, sg.total.unit||m.unit)}</span>${badge}</span></div>`;
     }
@@ -2367,16 +2378,24 @@ function groupedCardHTML(mainKey, subgroups, opts){
     </div>`;
   }
 
-  // Cuando el bloque grande ya no es de la métrica principal, se deja un
-  // indicador compacto de su cumplimiento junto al delta (arriba), para no
-  // perder ese dato aunque ya no tenga el bloque completo para él solo.
-  let miniCump = '';
-  if(metaKey !== mainKey){
-    const headMeta = metaRowData(mainKey, state.negocio, state.month, state.metaMode);
-    if(headMeta && headMeta.meta!=null && headMeta.cumplimiento!=null){
-      const c = headMeta.cumplimiento>=98 ? 'var(--green)' : headMeta.cumplimiento>=90 ? 'var(--gold)' : 'var(--red)';
-      miniCump = ` <span class="cump-mini" style="color:${c};">· ${fmtNum(headMeta.cumplimiento,1)}% PPTO</span>`;
-    }
+  // Línea superior de la card: ya no se muestra el % de crecimiento vs.
+  // mes anterior -- se reemplaza por el cumplimiento vs. PPTO de la
+  // métrica principal (mismo criterio de semáforo que el borde de la
+  // card, ver trendClassFor). Si el negocio no tiene PPTO cargado para
+  // esta métrica todavía, cae al criterio anterior (flecha + % vs. mes
+  // anterior) como respaldo.
+  const headMetaTop = metaRowData(mainKey, state.negocio, state.month, state.metaMode);
+  let topPillColor, topPillBg, topPillText;
+  if(headMetaTop && headMetaTop.meta!=null && headMetaTop.cumplimiento!=null){
+    const cump = headMetaTop.cumplimiento;
+    topPillColor = cump>=98 ? 'var(--green)' : cump>=90 ? 'var(--gold)' : 'var(--red)';
+    topPillBg = cump>=98 ? 'rgba(74,222,128,.12)' : cump>=90 ? 'rgba(205,160,94,.12)' : 'rgba(244,115,138,.12)';
+    // Convención del tablero: siempre Real / PPTO (% cumplimiento).
+    topPillText = fmtUnit(headMetaTop.real, m.unit)+' / '+fmtUnit(headMetaTop.meta, m.unit)+' ('+fmtNum(cump,1)+'%)';
+  } else {
+    topPillColor = dcls==='up' ? 'var(--green)' : dcls==='down' ? 'var(--red)' : 'var(--text-faint)';
+    topPillBg = dcls==='up' ? 'rgba(74,222,128,.12)' : dcls==='down' ? 'rgba(244,115,138,.12)' : '#151923';
+    topPillText = darrow+' '+(pct==null? 'Sin mes previo' : fmtPct(pct)+' vs mes anterior');
   }
 
   return `
@@ -2386,7 +2405,7 @@ function groupedCardHTML(mainKey, subgroups, opts){
     </div>
     <div class="kpi-value">${fmtUnit(cur, m.unit)}</div>
     <div class="kpi-label">${opts.label || m.label}</div>
-    <div class="kpi-delta ${dcls}">${darrow} ${pct==null? 'Sin mes previo' : fmtPct(pct)+' vs mes anterior'}${miniCump}</div>
+    <div class="kpi-delta" style="color:${topPillColor};background:${topPillBg};">${topPillText}</div>
     ${metaHtml}
     ${subHtml}
   `;
@@ -2417,13 +2436,13 @@ function renderResumen(){
         { title:'Variación Neta AUM (Acumulado)', rows:[
             {label:'NNA', value:metricValue('nna',members,state.month), unit:'MDP', color:metricValue('nna',members,state.month)>=0?'var(--green)':'var(--red)', metricKey:'nna'},
             {label:'Rendimiento AUM', value:metricValue('rendAUM',members,state.month), unit:'MDP', color:metricValue('rendAUM',members,state.month)>=0?'var(--teal)':'var(--red)'},
-          ], total:{label:'VN AUM', value:metricValue('vnAUM',members,state.month), unit:'MDP'} },
+          ], total:{label:'Δ AUM', value:metricValue('vnAUM',members,state.month), unit:'MDP'} },
       ]},
     { key:'fondos', metaMetricKey:'nnf', subgroups:[
         { title:'Variación Neta Fondos (Acumulado)', rows:[
             {label:'NNF', value:metricValue('nnf',members,state.month), unit:'MDP', color:metricValue('nnf',members,state.month)>=0?'var(--green)':'var(--red)', metricKey:'nnf'},
             {label:'Rendimiento Fondos', value:metricValue('rendFondos',members,state.month), unit:'MDP', color:metricValue('rendFondos',members,state.month)>=0?'var(--teal)':'var(--red)'},
-          ], total:{label:'VN Fondos', value:metricValue('vnFondos',members,state.month), unit:'MDP'} },
+          ], total:{label:'Δ Fondos', value:metricValue('vnFondos',members,state.month), unit:'MDP'} },
       ]},
     { key:'montoCredito', subgroups:[
         { title:'Cross Sell (Acumulado / Balance)', rows:[
@@ -2589,16 +2608,16 @@ function renderResumenQuadrants(){
         {label:'Offshore', kpi:'4.2_Totales_Offshore', color:'#b7a4e8'},
       ],
       deriveFromSegments:true, unitLabel:'AUM Total', unit2:'MDP',
-      secondary:()=>({label:'VN AUM (Acumulado)', value:metricValue('vnAUM', members, state.month), unit:'MDP'})
+      secondary:()=>({label:'Δ AUM (Acumulado)', value:metricValue('vnAUM', members, state.month), unit:'MDP'})
     },
     {
-      id:'quadFondos', title:'Fondos — Composición VN', unit:'MDP', formatValue:v=>'$'+fmtNum(v),
+      id:'quadFondos', title:'Fondos — Composición Δ', unit:'MDP', formatValue:v=>'$'+fmtNum(v),
       segments:[
         {label:'NNF', kpi:'5.1.2_NNF', color:'#4ade80', flow:true},
         {label:'Rendimiento', kpi:'5.1.1_Rendimiento_Fondos', color:'#5eead4', flow:true},
       ],
       mainMetricKey:'fondos',
-      secondary:()=>({label:'VN Fondos (Acumulado)', value:metricValue('vnFondos', members, state.month), unit:'MDP'})
+      secondary:()=>({label:'Δ Fondos (Acumulado)', value:metricValue('vnFondos', members, state.month), unit:'MDP'})
     },
     {
       id:'quadCredito', title:'Cartera de Crédito', unit:'MDP', formatValue:v=>'$'+fmtNum(v),
@@ -2735,7 +2754,7 @@ function renderAUM(){
     { title:'Variación Neta AUM (Acumulado)', rows:[
         {label:'NNA', value:nna, unit:'MDP', color:nna>=0?'var(--green)':'var(--red)', metricKey:'nna'},
         {label:'Rendimiento AUM', value:rend, unit:'MDP', color:rend>=0?'var(--teal)':'var(--red)'},
-      ], total:{label:'VN AUM', value:vnAUM, unit:'MDP'} },
+      ], total:{label:'Δ AUM', value:vnAUM, unit:'MDP'} },
   ], {metaMetricKey:'nna'});
 
   const onSerie = MONTHS.map(mo=>getBalance(members, mo, '4.3_Totales_Onshore'));
@@ -2745,7 +2764,7 @@ function renderAUM(){
     {label:'Offshore', data:offSerie, borderColor:'#b7a4e8', backgroundColor:'rgba(183,164,232,.12)', fill:true, tension:.35, pointRadius:3, borderWidth:2.5}
   ]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top', align:'end'}}, scales:{x:{grid:{display:false}}, y:{grid:GRID, ticks:{callback:v=>fmtNum(v)}}}} });
 
-  chart('chartAumComp', { type:'bar', data:{labels:['NNA','Rendimiento AUM','VN AUM'], datasets:[{data:[nna, rend, vnAUM], backgroundColor:[nna>=0?'#4ade80':'#f4738a', rend>=0?'#5eead4':'#f4738a', vnAUM>=0?'#5b8def':'#dba15f'], borderRadius:8}]},
+  chart('chartAumComp', { type:'bar', data:{labels:['NNA','Rendimiento AUM','Δ AUM'], datasets:[{data:[nna, rend, vnAUM], backgroundColor:[nna>=0?'#4ade80':'#f4738a', rend>=0?'#5eead4':'#f4738a', vnAUM>=0?'#5b8def':'#dba15f'], borderRadius:8}]},
     options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmtUnit(c.parsed.y,'MDP')}}}, scales:{x:{grid:{display:false}}, y:{grid:GRID, ticks:{callback:v=>fmtNum(v)}}}} });
 
   const rankData = RANK_IDS.map(id=>({label:negocio(id).label, val:getBalance(negocio(id).members, state.month, '4.3_Totales_Onshore'), color:negocio(id).color})).sort((a,b)=>b.val-a.val);
@@ -2769,14 +2788,14 @@ function renderFondos(){
     { title:'Variación Neta Fondos (Acumulado)', rows:[
         {label:'NNF', value:nnf, unit:'MDP', color:nnf>=0?'var(--green)':'var(--red)', metricKey:'nnf'},
         {label:'Rendimiento Fondos', value:rend, unit:'MDP', color:rend>=0?'var(--teal)':'var(--red)'},
-      ], total:{label:'VN Fondos', value:vnf, unit:'MDP'} },
+      ], total:{label:'Δ Fondos', value:vnf, unit:'MDP'} },
   ], {metaMetricKey:'nnf'});
 
   const serie = MONTHS.map(mo=>getBalance(members, mo, '5_Fondos'));
   chart('chartFondosEvol', { type:'line', data:{labels:MONTHS.map(monthShort), datasets:[{label:'Fondos', data:serie, borderColor:'#5b8def', backgroundColor:'rgba(91,141,239,.16)', fill:true, tension:.35, pointRadius:3, borderWidth:2.5}]},
     options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}}, y:{grid:GRID, ticks:{callback:v=>fmtNum(v)}}}} });
 
-  chart('chartFondosComp', { type:'bar', data:{labels:['NNF','Rendimiento Fondos','VN Fondos'], datasets:[{data:[nnf, rend, vnf], backgroundColor:[nnf>=0?'#4ade80':'#f4738a', rend>=0?'#5eead4':'#f4738a', vnf>=0?'#5b8def':'#dba15f'], borderRadius:8}]},
+  chart('chartFondosComp', { type:'bar', data:{labels:['NNF','Rendimiento Fondos','Δ Fondos'], datasets:[{data:[nnf, rend, vnf], backgroundColor:[nnf>=0?'#4ade80':'#f4738a', rend>=0?'#5eead4':'#f4738a', vnf>=0?'#5b8def':'#dba15f'], borderRadius:8}]},
     options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmtUnit(c.parsed.y,'MDP')}}}, scales:{x:{grid:{display:false}}, y:{grid:GRID, ticks:{callback:v=>fmtNum(v)}}}} });
 
   const rankData = RANK_IDS.map(id=>({label:negocio(id).label, val:getBalance(negocio(id).members, state.month, '5_Fondos'), color:negocio(id).color})).sort((a,b)=>b.val-a.val);
