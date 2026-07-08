@@ -486,7 +486,7 @@ body{
         <div class="card" style="padding:0;">
           <div class="table-scroll"><table class="mini-table div-wide-table detail-table" id="resumenCompTable"></table></div>
         </div>
-        <div class="footer-note" style="text-align:left;padding:8px 4px 0;">¹ KPI que no existe en la fuente (sin captura, ni mensual ni diaria): solo se muestra la meta (PPTO) · ² Sin captura día a día en la fuente: "Al" y Δ MTD/YTD muestran el cierre de Junio, por eso Δ Día y Δ WTD quedan en "—". Δ WTD compara contra el cierre del jueves que abrió la semana en curso (semana laboral Vie-Jue) · "PPTO Jul Ac." es la meta de nivel a fin de mes (solo saldos) · Cifras monetarias en millones de pesos (MDP).</div>
+        <div class="footer-note" style="text-align:left;padding:8px 4px 0;">¹ KPI que no existe en la fuente (sin captura, ni mensual ni diaria): solo se muestra la meta (PPTO) · ² Sin captura día a día en la fuente: "Al" y Δ MTD/YTD muestran el cierre de Junio, por eso Δ Día y Δ WTD quedan en "—" · ⁴ Cartera de Crédito: cifra real de Finanzas (a mes vencido) para Banca Privada, Patrimonial y Wealth Management; el mes en curso es una aproximación (último cierre real de Finanzas + delta del mes en la fuente original) hasta que Finanzas confirme el cierre. Sin captura diaria, Δ Día y Δ WTD quedan en "—". Externos y Fiduciario no vienen desglosados en Finanzas, así que en WM Consolidado/Todos esta cifra mezcla Finanzas (Wealth) con la fuente original (Externos/Fiduciario) · Δ WTD compara contra el cierre del jueves que abrió la semana en curso (semana laboral Vie-Jue) · "PPTO Jul Ac." es la meta de nivel a fin de mes (solo saldos) · Cifras monetarias en millones de pesos (MDP).</div>
       </section>
 
       <!-- ===================== CLIENTES ===================== -->
@@ -938,6 +938,46 @@ const METRICS = {
    resto de los KPIs de Fiduciario (Clientes, AUM, Fondos, Creditos) nunca se
    tocan, esten cual esten. */
 const EXCLUDED_KPI_BANCA = { 'Fiduciario': ['4.5_NNA'] };
+
+/* Cartera de Crédito "real" que reporta Finanzas a cierre de mes: viene por
+   un canal y definición distintos a los de "ACUMULADO NEGOCIOS" (RAW_DATA),
+   por lo que el nivel no coincide -- p.ej. Jun-26 Banca Privada: $2,660 MDP
+   (fuente original) vs. $3,310 MDP (Finanzas), ~24% de diferencia. El usuario
+   pidió sustituir esta cifra por la de Finanzas en todo el tablero. Finanzas
+   la entrega "a mes vencido" (solo meses ya cerrados) por Privada,
+   Patrimonial y Wealth Management (solo) -- NO trae Externos ni Fiduciario
+   desglosados, así que esos dos bancas siguen usando la fuente original sin
+   cambio (y por lo tanto WM Consolidado/Todos quedan con una cifra mixta:
+   Finanzas en la parte de Wealth + fuente original en Externos/Fiduciario --
+   ver nota en el pie de "Indicadores Detallados").
+   Para el mes en curso (aún no cerrado por Finanzas, p.ej. Julio con datos
+   hasta Junio) se aproxima: último REAL de Finanzas + delta del mes en la
+   fuente original (RAW_DATA) entre el mes en curso y ese último cierre --
+   así se sigue viendo avance mes a mes aunque el nivel base venga de
+   Finanzas. Esto se recalcula solo: en cuanto se agregue el mes siguiente a
+   esta tabla, ese pasa a ser el nuevo "último cierre real" automáticamente. */
+const FINANCE_CARTERA_CREDITO = {
+  'BANCA PRIVADA':    { '2026-01':3563.0411105, '2026-02':3554.9296115, '2026-03':3373.065112, '2026-04':3252.936154, '2026-05':3180.7856215, '2026-06':3310 },
+  'PATRIMONIAL':      { '2026-01':273.62626,    '2026-02':302.419743,   '2026-03':302.95931,   '2026-04':326.625577,  '2026-05':333.288491,   '2026-06':392 },
+  'WEALTH MANAGMENT': { '2026-01':1067.77468,   '2026-02':1043.685367,  '2026-03':1059.992062, '2026-04':1035.148561, '2026-05':943.77005,    '2026-06':1080 },
+};
+function financeCarteraLastMonth(banca){
+  const tbl = FINANCE_CARTERA_CREDITO[banca];
+  if(!tbl) return null;
+  const months = Object.keys(tbl).filter(mo=>tbl[mo]!=null).sort();
+  return months.length ? months[months.length-1] : null;
+}
+function financeCarteraCredito(banca, month){
+  const tbl = FINANCE_CARTERA_CREDITO[banca];
+  if(!tbl) return null; // Externos / Fiduciario: sin desglose de Finanzas -> usar fuente original
+  if(tbl[month]!=null) return tbl[month]; // mes ya cerrado y confirmado por Finanzas
+  const lastM = financeCarteraLastMonth(banca);
+  if(!lastM) return null;
+  const internalOf = mo => { const mm = IDX[banca] && IDX[banca][mo]; return (mm && mm['9.3_Cartera_Credito']!=null) ? mm['9.3_Cartera_Credito'] : null; };
+  const curInt = internalOf(month), lastInt = internalOf(lastM);
+  if(curInt==null || lastInt==null) return tbl[lastM];
+  return tbl[lastM] + (curInt - lastInt);
+}
 /* true SOLO cuando el conjunto de miembros a mostrar es exactamente
    Fiduciario solo (no cuando viene mezclado en WM Consolidado o Todos --
    ahi el numero ya sale correcto, sin Fiduciario, gracias a rawVal) Y el
@@ -947,6 +987,10 @@ function isFidNnaExcluded(members){ return state.excludeFidNNA && members.length
 function rawVal(banca, month, kpiResolver){
   const k = typeof kpiResolver==='function' ? kpiResolver(banca) : kpiResolver;
   if(state.excludeFidNNA && EXCLUDED_KPI_BANCA[banca] && EXCLUDED_KPI_BANCA[banca].includes(k)) return 0;
+  if(k==='9.3_Cartera_Credito'){
+    const fc = financeCarteraCredito(banca, month);
+    if(fc!=null) return fc;
+  }
   const m = IDX[banca] && IDX[banca][month];
   return (m && m[k]!=null) ? m[k] : 0;
 }
@@ -1149,7 +1193,7 @@ const DETAIL_ROWS = [
   { label:'Traspasos Fondos', indent:1, unit:'MDP', dec:0, metricKey:'traspasosFondos' },
   { label:'Créditos Nuevos (#)', indent:0, unit:'créditos', dec:0, metricKey:'creditosNuevos' },
   { label:'Monto de Crédito Nuevo', indent:0, unit:'MDP', dec:0, metricKey:'montoCredito', bold:true },
-  { label:'Cartera de Crédito', indent:0, unit:'MDP', dec:0, metricKey:'carteraCredito', bold:true },
+  { label:'Cartera de Crédito', indent:0, unit:'MDP', dec:0, metricKey:'carteraCredito', bold:true, financeMonthly:true },
   { label:'Primas Nuevas Emitidas ($)', indent:0, unit:'MDP', dec:0, metricKey:'primasEmitidas', special:'noReal' },
   { label:'Pólizas Nuevas Emitidas (#)', indent:0, unit:'pólizas', dec:0, metricKey:'polizasNuevas' },
 ];
@@ -1176,6 +1220,32 @@ function detailRowValues(row, negId){
     const pptomtd = detailPptoMonth(row.metricKey, negId, '2026-07');
     const pptoytd = detailPptoYtd(row.metricKey, negId);
     return { al:null, dtd:null, wtd:null, mtd:null, ytd:null, pptomtd, logromtd:null, pptoytd, logroytd:null, pptolvl:null, logrolvl:null, hasDaily:false };
+  }
+  if(row.financeMonthly){
+    // Cartera de Crédito: Finanzas solo entrega cierres de mes (sin
+    // captura diaria), así que "Al"/MTD/YTD se calculan sobre el mes en
+    // curso vía getBalance (que ya trae el ajuste/aproximación de
+    // financeCarteraCredito) en vez de la captura diaria de DAILY_IDX.
+    // Δ Día y Δ WTD quedan en "—" -- no existe ese dato en la fuente.
+    const latest = MONTHS[MONTHS.length-1];
+    const prev = prevMonth(latest);
+    const al = getBalance(members, latest, m.kpi);
+    const prevBal = prev!=null ? getBalance(members, prev, m.kpi) : null;
+    const jan = getBalance(members, MONTHS[0], m.kpi);
+    const mtd = prevBal!=null ? al-prevBal : null;
+    const ytd = al-jan;
+    const pptoLatest = detailPptoMonth(row.metricKey, negId, latest);
+    const pptoPrev = prev!=null ? detailPptoMonth(row.metricKey, negId, prev) : null;
+    const pptoJan = detailPptoMonth(row.metricKey, negId, MONTHS[0]);
+    const pptomtd = (pptoLatest!=null && pptoPrev!=null) ? pptoLatest-pptoPrev : null;
+    const pptoytd = (pptoLatest!=null && pptoJan!=null) ? pptoLatest-pptoJan : null;
+    return {
+      al, dtd:null, wtd:null, mtd, ytd,
+      pptomtd, logromtd: pptomtd ? (mtd/pptomtd*100) : null,
+      pptoytd, logroytd: pptoytd ? (ytd/pptoytd*100) : null,
+      pptolvl: pptoLatest, logrolvl: pptoLatest ? (al/pptoLatest*100) : null,
+      hasDaily:false
+    };
   }
   if(row.dailyUsable===false){
     const al  = getBalance(members, '2026-06', m.kpi);
@@ -2230,7 +2300,7 @@ function buildExecutivePptx(){
       DETAIL_ROWS.forEach(row=>{
         const m = METRICS[row.metricKey];
         const v = detailRowValues(row, dn.id);
-        const supTxt = row.special==='noReal' ? ' ¹' : (row.dailyUsable===false ? ' ²' : '');
+        const supTxt = row.special==='noReal' ? ' ¹' : (row.financeMonthly ? ' ⁴' : (row.dailyUsable===false ? ' ²' : ''));
         const labelTxt = (row.indent?'    ':'')+m.label+supTxt;
         const labelColor = row.bold ? WHITE : DIM;
         rows.push([
@@ -2255,7 +2325,7 @@ function buildExecutivePptx(){
         border:{ type:'solid', color:BORDER, pt:0.5 }, fill:{color:CARD}, autoPage:false });
 
       const noteY = 1.3 + detailHeaderRowH + detailBodyRowH*DETAIL_ROWS.length + 0.1;
-      slide.addText('¹ KPI sin captura en la fuente (ni mensual ni diaria): solo se muestra la meta (PPTO) · ² Sin captura diaria: "Al"/Δ MTD/YTD muestran cierre de Junio, Δ Día y Δ WTD quedan en "—" · ³ NNA de Fiduciario excluido de las sumas (mide movimientos brutos de vehículos fiduciarios, no dinero nuevo neto) · Δ WTD vs. cierre del jueves anterior · "PPTO Jul Ac." es meta de nivel a fin de mes · Cifras en MDP.',
+      slide.addText('¹ KPI sin captura en la fuente (ni mensual ni diaria): solo se muestra la meta (PPTO) · ² Sin captura diaria: "Al"/Δ MTD/YTD muestran cierre de Junio, Δ Día y Δ WTD quedan en "—" · ³ NNA de Fiduciario excluido de las sumas (mide movimientos brutos de vehículos fiduciarios, no dinero nuevo neto) · ⁴ Cartera de Crédito: cifra real de Finanzas (a mes vencido) en Privada/Patrimonial/Wealth; mes en curso aproximado (último cierre + delta interno); sin captura diaria; en WM Consolidado/Todos mezcla Finanzas (Wealth) con fuente original (Externos/Fiduciario) · Δ WTD vs. cierre del jueves anterior · "PPTO Jul Ac." es meta de nivel a fin de mes · Cifras en MDP.',
         { x:0.6, y:noteY, w:12.13, h:0.3, fontFace:FONT_BODY, fontSize:7.5, color:DIM, italic:true });
 
       addFooter(slide, 'Indicadores Detallados · '+dn.label);
@@ -2905,9 +2975,8 @@ function quadKpiHTML(label, value, deltaVal, unit, opts){
 }
 function renderResumenQuadrants(){
   const members = negocio(state.negocio).members;
-  document.getElementById('resumenQuadMonthLabel').textContent = monthLabel(state.month)+' vs '+(prevMonth(state.month)?monthLabel(prevMonth(state.month)):'—');
+  document.getElementById('resumenQuadMonthLabel').textContent = 'Real vs. Meta (Acumulado) · Corte: '+cutoffLabel(state.month);
   const pm = prevMonth(state.month);
-  const cats = pm ? [monthLabel(pm), monthLabel(state.month)] : [monthLabel(state.month)];
 
   const quads = [
     {
@@ -2918,7 +2987,7 @@ function renderResumenQuadrants(){
         {label:'2M – 20M', kpi:'1.2.3_2M_20M', color:'#b7a4e8'},
         {label:'20M+', kpi:'1.2.4_20M', color:'#cda05e'},
       ],
-      mainMetricKey:'clientesTotales',
+      mainMetricKey:'clientesTotales', metaKey:'clientesTotales',
       secondary:()=>{
         const kpiArriba100k = b=>['1.2.2_100K_2M','1.2.3_2M_20M','1.2.4_20M'].reduce((s,k)=>s+rawVal(b,state.month,k),0);
         const val = members.reduce((s,b)=>s+kpiArriba100k(b),0);
@@ -2931,7 +3000,7 @@ function renderResumenQuadrants(){
         {label:'Onshore', kpi:'4.3_Totales_Onshore', color:'#5b8def'},
         {label:'Offshore', kpi:'4.2_Totales_Offshore', color:'#b7a4e8'},
       ],
-      deriveFromSegments:true, unitLabel:'AUM Total', unit2:'MDP',
+      deriveFromSegments:true, unitLabel:'AUM Total', unit2:'MDP', metaKey:'aumTotal',
       secondary:()=>({label:'Δ AUM (Acumulado)', value:metricValue('vnAUM', members, state.month), unit:'MDP'})
     },
     {
@@ -2940,7 +3009,7 @@ function renderResumenQuadrants(){
         {label:'NNF', kpi:'5.1.2_NNF', color:'#4ade80', flow:true},
         {label:'Rendimiento', kpi:'5.1.1_Rendimiento_Fondos', color:'#5eead4', flow:true},
       ],
-      mainMetricKey:'fondos',
+      mainMetricKey:'fondos', metaKey:'fondos',
       secondary:()=>({label:'Δ Fondos (Acumulado)', value:metricValue('vnFondos', members, state.month), unit:'MDP'})
     },
     {
@@ -2948,12 +3017,13 @@ function renderResumenQuadrants(){
       segments:[
         {label:'Cartera de Crédito', kpi:'9.3_Cartera_Credito', color:'#7ba3f5'},
       ],
-      mainMetricKey:'carteraCredito',
+      mainMetricKey:'carteraCredito', metaKey:'carteraCredito',
       secondary:()=>{
         const jan = getBalance(members, MONTHS[0], '9.3_Cartera_Credito');
         const cur = getBalance(members, state.month, '9.3_Cartera_Credito');
-        const ytd = jan!==0 ? (cur-jan)/Math.abs(jan)*100 : null;
-        return {label:'Avance del Crecimiento Anual (YTD)', value:ytd, unit:'%', isPct:true};
+        const ytdAbs = cur - jan;
+        const ytdPct = jan!==0 ? ytdAbs/Math.abs(jan)*100 : null;
+        return {label:'Avance del Crecimiento Anual (YTD)', value:ytdAbs, unit:'MDP', pct:ytdPct, isYtd:true};
       }
     },
   ];
@@ -2961,7 +3031,7 @@ function renderResumenQuadrants(){
   const container = document.getElementById('resumenQuadrants');
   container.innerHTML = quads.map(q=>`
     <div class="card chart-card">
-      <div class="chart-head"><h3>${q.title}</h3><span class="hint">${negocio(state.negocio).label}</span></div>
+      <div class="chart-head"><h3>${q.title}</h3><span class="hint" id="${q.id}_hint">${negocio(state.negocio).label}</span></div>
       <div class="quad-body">
         <div class="quad-left" id="${q.id}_kpis"></div>
         <div class="quad-right"><div class="chart-box h-260"><canvas id="${q.id}_chart"></canvas></div></div>
@@ -2984,7 +3054,15 @@ function renderResumenQuadrants(){
     }
     const sec = q.secondary();
     let secHtml;
-    if(sec.isPct){
+    if(sec.isYtd){
+      // Monto absoluto primero (lo que el usuario necesita para dimensionar
+      // el avance real) y el % entre paréntesis solo como referencia --
+      // mostrar nada más el % obligaba a hacer la cuenta inversa a mano.
+      const color = sec.value==null ? 'var(--text-faint)' : (sec.value>=0?'var(--green)':'var(--red)');
+      const absTxt = sec.value==null ? '—' : (sec.value>=0?'+':'')+fmtUnit(sec.value, sec.unit);
+      const pctTxt = sec.pct!=null ? ' ('+(sec.pct>=0?'+':'')+fmtNum(sec.pct,1)+'%)' : '';
+      secHtml = `<div class="quad-kpi secondary"><div class="ql-label">${sec.label}</div><div class="ql-value" style="color:${color}">${absTxt}${pctTxt}</div><div class="ql-delta">Enero → ${monthShort(state.month)}</div></div>`;
+    } else if(sec.isPct){
       secHtml = `<div class="quad-kpi secondary"><div class="ql-label">${sec.label}</div><div class="ql-value" style="color:${sec.value==null?'var(--text-faint)':(sec.value>=0?'var(--green)':'var(--red)')}">${sec.value==null?'—':fmtPct(sec.value)}</div><div class="ql-delta">Enero → ${monthShort(state.month)}</div></div>`;
     } else {
       secHtml = quadKpiHTML(sec.label, sec.value, null, sec.unit, {secondary:true, note:'Acumulado a la fecha'});
@@ -2992,21 +3070,70 @@ function renderResumenQuadrants(){
     document.getElementById(q.id+'_kpis').innerHTML =
       quadKpiHTML('Variación '+mLabel, cur, delta, mUnit) + secHtml;
 
-    const datasets = q.segments.map(seg=>({
-      label:seg.label, color:seg.color,
-      data: pm
-        ? [ seg.flow ? getFlow(members, pm, seg.kpi) : getBalance(members, pm, seg.kpi),
-            seg.flow ? getFlow(members, state.month, seg.kpi) : getBalance(members, state.month, seg.kpi) ]
-        : [ seg.flow ? getFlow(members, state.month, seg.kpi) : getBalance(members, state.month, seg.kpi) ]
-    }));
+    // Real vs. Meta (Acumulado a la fecha) + % de cumplimiento -- mismo
+    // tratamiento que "Evolución de X" y "X por Negocio" en vez de la barra
+    // de composición mes-anterior-vs-mes-actual (aportaba poco: la
+    // composición casi no cambia de un mes a otro).
+    const metaM = METRICS[q.metaKey];
+    const hintEl = document.getElementById(q.id+'_hint');
 
-    chart(q.id+'_chart', {
-      type:'bar',
-      data:{ labels:cats, datasets },
-      options:{ responsive:true, maintainAspectRatio:false, stacked:true, formatValue:q.formatValue,
-        plugins:{ legend:{display: q.segments.length>1},
-          tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtUnit(c.parsed.x, q.unit)}} } }
-    });
+    if(state.negocio==='all'){
+      // Vista "Todos": en vez de una sola barra agregada (que esconde qué
+      // negocio va mal), se abre la participación de cada negocio (Privada,
+      // Patrimonial, WM Consolidado) + el Total, igual que "X por Negocio" --
+      // así se ve de un vistazo, p.ej., que Cartera de Crédito va al 59% en
+      // total porque BP y Patrimonial van rezagados, no WM.
+      const rows = RESUMEN_IDS.map(id=>{
+        const rr = metaRowData(q.metaKey, id, state.month, 'acumulado');
+        return { label:negocio(id).label.replace('· ',''), cump: rr&&rr.cumplimiento!=null?rr.cumplimiento:null, meta: rr?rr.meta:null, real: rr?rr.real:metricValue(q.metaKey, negocio(id).members, state.month) };
+      });
+      const rTotal = metaRowData(q.metaKey, 'all', state.month, 'acumulado');
+      rows.unshift({ label:'Total Asesoría', cump: rTotal&&rTotal.cumplimiento!=null?rTotal.cumplimiento:null, meta: rTotal?rTotal.meta:null, real: rTotal?rTotal.real:cur });
+      const hasCump = rows.some(rw=>rw.cump!=null);
+      if(hintEl) hintEl.textContent = hasCump ? 'Cumplimiento acumulado por negocio (Real / Meta)' : 'Acumulado a la fecha por negocio';
+      const vals = hasCump ? rows.map(rw=>rw.cump) : rows.map(rw=>rw.real);
+      const subLabels = rows.map(rw=> rw.meta!=null ? (fmtUnit(rw.real, metaM.unit)+' / '+fmtUnit(rw.meta, metaM.unit)) : '');
+      const valueLabelCb = c=>{
+        const rw = rows[c.dataIndex];
+        return hasCump && rw.cump!=null ? fmtNum(rw.cump,1)+'%' : fmtUnit(rw.real, metaM.unit);
+      };
+      const tooltipCb = c=>{
+        const rw = rows[c.dataIndex];
+        if(rw.cump==null) return fmtUnit(rw.real, metaM.unit);
+        return fmtUnit(rw.real, metaM.unit)+' / '+fmtUnit(rw.meta, metaM.unit)+' ('+fmtNum(rw.cump,1)+'%)';
+      };
+      chart(q.id+'_chart', {
+        type:'bar',
+        data:{ labels:rows.map(rw=>rw.label), subLabels, datasets:[{ data:vals,
+          backgroundColor: hasCump ? vals.map(v=> v>=98?'#4ade80':(v>=90?'#cda05e':'#f4738a')) : vals.map(v=> v>=0?'#4ade80':'#f4738a'),
+          borderRadius:6, barThickness:22, showValues:true, valueLabelCb }] },
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>tooltipCb(c)}}},
+          scales:{ x:{grid:GRID, ticks:{callback:v=> hasCump ? fmtNum(v,0)+'%' : fmtNum(v)}}, y:{grid:{display:false}} } }
+      });
+    } else {
+      const r = metaRowData(q.metaKey, state.negocio, state.month, 'acumulado');
+      const hasCump = !!(r && r.cumplimiento!=null);
+      const realVal = r ? r.real : cur;
+      if(hintEl) hintEl.textContent = hasCump ? 'Real vs. Meta (Acumulado) · % = cumplimiento' : 'Sin PPTO cargado para este negocio';
+
+      const barDatasets = [
+        { label:metaM.label+' (Real)', data:[realVal], backgroundColor:metaM.color, borderRadius:8, showValues:true }
+      ];
+      if(hasCump){
+        barDatasets.push({ label:'Meta (PPTO)', data:[r.meta], backgroundColor:metaM.color+'40', borderRadius:8, showValues:true });
+      }
+
+      chart(q.id+'_chart', {
+        type:'bar',
+        data:{ labels:[negocio(state.negocio).label], datasets:barDatasets },
+        groupBadges: hasCump ? { data:[r.cumplimiento], format:v=>({ text:fmtNum(v,1)+'%', color: v>=98?'#4ade80':(v>=90?'#cda05e':'#f4738a') }) } : null,
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:hasCump, position:'top', align:'end'},
+            tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtUnit(c.parsed.y, metaM.unit)}} },
+          scales:{ x:{grid:{display:false}}, y:{grid:GRID, ticks:{callback:v=>fmtNum(v)}} } }
+      });
+    }
   });
 }
 
