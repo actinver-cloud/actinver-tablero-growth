@@ -849,6 +849,19 @@ const MONTH_NAMES = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06'
 function monthLabel(m){ const [y,mm] = m.split('-'); return MONTH_NAMES[mm]+' '+y; }
 function monthShort(m){ const mm = m.split('-')[1]; return MONTH_NAMES[mm]; }
 function dailyDateLabel(fecha){ const [y,mm,dd] = fecha.split('-'); return dd+' '+MONTH_NAMES[mm]; }
+/* Para el mes mas reciente (el unico con captura dia a dia), el "corte" real
+   es el ultimo dato disponible (DAILY_DATES.latest, ej. "07 Jul 2026"), no
+   el mes completo -- mostrar solo "Jul 2026" da a entender que julio ya
+   cerro. Para meses anteriores (cierres de mes reales) se sigue mostrando
+   el mes tal cual. Siempre la fecha maxima de la que hay informacion. */
+function cutoffLabel(month){
+  const isLatestMonth = month === MONTHS[MONTHS.length-1];
+  if(isLatestMonth && typeof DAILY_DATES!=='undefined' && DAILY_DATES.latest && DAILY_DATES.latest.slice(0,7)===month){
+    const y = DAILY_DATES.latest.slice(0,4);
+    return dailyDateLabel(DAILY_DATES.latest)+' '+y;
+  }
+  return monthLabel(month);
+}
 
 /* ============================================================
    NEGOCIOS
@@ -2015,7 +2028,7 @@ function buildExecutivePptx(){
   try{
     const members = negocio(state.negocio).members;
     const negocioLabel = negocio(state.negocio).label;
-    const monthLbl = monthLabel(state.month) + (state.metaMode==='mes' ? ' (Mes)' : ' (Acumulado)');
+    const monthLbl = cutoffLabel(state.month) + (state.metaMode==='mes' ? ' (Mes)' : ' (Acumulado)');
 
     const BG='0A0D12', CARD='12151D', CARD2='181C27', BORDER='242A36', GOLD='CDA05E',
           WHITE='FFFFFF', DIM='8A93A6', GREEN='4ADE80', RED='F4738A';
@@ -2655,7 +2668,7 @@ function groupedCardHTML(mainKey, subgroups, opts){
    RENDER: RESUMEN EJECUTIVO
    ============================================================ */
 function renderResumen(){
-  document.getElementById('resumenMonthLabel').textContent = 'Corte: '+monthLabel(state.month)+' · '+negocio(state.negocio).label;
+  document.getElementById('resumenMonthLabel').textContent = 'Corte: '+cutoffLabel(state.month)+' · '+negocio(state.negocio).label;
   const members = negocio(state.negocio).members;
   const grid = document.getElementById('resumenKpis');
 
@@ -3170,7 +3183,7 @@ function renderAnalisis(){
   const key = document.getElementById('analisisMetricSelect').value || 'clientesTotales';
   const m = METRICS[key];
   document.getElementById('analisisRankTitle').textContent = m.label+' por Negocio';
-  document.getElementById('analisisRankHint').textContent = m.type==='balance' ? ('Corte '+monthLabel(state.month)) : ('Acumulado Ene→'+monthShort(state.month));
+  document.getElementById('analisisRankHint').textContent = m.type==='balance' ? ('Corte '+cutoffLabel(state.month)) : ('Acumulado Ene→'+monthShort(state.month));
 
   const data = RANK_IDS.map(id=>{
     const mem = negocio(id).members;
@@ -3270,7 +3283,7 @@ function renderDetalle(){
    RENDER: INSIGHTS
    ============================================================ */
 function renderInsights(){
-  document.getElementById('insightsMonthLabel').textContent = 'Corte: '+monthLabel(state.month);
+  document.getElementById('insightsMonthLabel').textContent = 'Corte: '+cutoffLabel(state.month);
   const groups = RANK_IDS.map(id=>({id, label:negocio(id).label, members:negocio(id).members, color:negocio(id).color}));
 
   const clientesNow = groups.map(g=>({...g, val:getBalance(g.members, state.month, clientesTotalesKPI)}));
@@ -3294,12 +3307,12 @@ function renderInsights(){
   const negativos = vnAUMs.filter(d=>d.val<0).map(d=>d.label);
 
   const insights = [
-    {icon:'', color:'#4ade80', title:'Mayor crecimiento acumulado en clientes', html:`<b>${groups[maxGrowthIdx].label}</b> presenta el mayor crecimiento porcentual acumulado de clientes desde enero (<b>${fmtPct(growthPct[maxGrowthIdx])}</b>) al corte de ${monthLabel(state.month)}.`},
+    {icon:'', color:'#4ade80', title:'Mayor crecimiento acumulado en clientes', html:`<b>${groups[maxGrowthIdx].label}</b> presenta el mayor crecimiento porcentual acumulado de clientes desde enero (<b>${fmtPct(growthPct[maxGrowthIdx])}</b>) al corte de ${cutoffLabel(state.month)}.`},
     {icon:'', color:'#5b8def', title:'Mayor captación de clientes', html:`<b>${maxCaptacion.label}</b> lidera la captación neta de clientes acumulada con <b>${fmtNum(maxCaptacion.val)}</b> clientes (Nuevos + Reactivados − Salidas).`},
     {icon:'', color:'#5eead4', title:'Mayor incremento en AUM', html:`<b>${maxAUM.label}</b> registra el mayor incremento acumulado en AUM con una Variación Neta de <b>${fmtUnit(maxAUM.val,'MDP')}</b>.`},
-    {icon:'', color:'#f4738a', title:'Mayor caída de clientes', html: minCaptacion.val<0 ? `<b>${minCaptacion.label}</b> muestra la mayor caída neta de clientes acumulada con <b>${fmtNum(minCaptacion.val)}</b> clientes.` : `Ningún negocio muestra variación neta de clientes negativa al corte de ${monthLabel(state.month)}.`},
+    {icon:'', color:'#f4738a', title:'Mayor caída de clientes', html: minCaptacion.val<0 ? `<b>${minCaptacion.label}</b> muestra la mayor caída neta de clientes acumulada con <b>${fmtNum(minCaptacion.val)}</b> clientes.` : `Ningún negocio muestra variación neta de clientes negativa al corte de ${cutoffLabel(state.month)}.`},
     {icon:'', color:'#b7a4e8', title:'Participación de cada negocio', html: clientesNow.map(d=>`<b>${d.label}</b>: ${fmtNum(totalClientes? d.val/totalClientes*100:0,0)}%`).join(' · ')},
-    {icon:'', color:'#cda05e', title:'Evolución mensual', html:`La base total de clientes ${overallGrowth>=0?'creció':'cayó'} <b>${fmtPct(overallGrowth)}</b> entre enero y ${monthLabel(state.month)}, pasando de ${fmtNum(totalClientesJan)} a ${fmtNum(totalClientes)} clientes.`},
+    {icon:'', color:'#cda05e', title:'Evolución mensual', html:`La base total de clientes ${overallGrowth>=0?'creció':'cayó'} <b>${fmtPct(overallGrowth)}</b> entre enero y ${cutoffLabel(state.month)}, pasando de ${fmtNum(totalClientesJan)} a ${fmtNum(totalClientes)} clientes.`},
     {icon:'', color:'#7ba3f5', title:'Ranking de negocios', html: rankSorted.map((d,i)=>`${i+1}. <b>${d.label}</b> (${fmtNum(d.val)})`).join(' · ')},
     {icon:'', color:'#67e8d8', title:'Tendencias en AUM', html:`Con Variación Neta de AUM positiva: <b>${positivos.length?positivos.join(', '):'ninguno'}</b>. Con tendencia negativa: <b>${negativos.length?negativos.join(', '):'ninguno'}</b>.`}
   ];
