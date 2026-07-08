@@ -256,6 +256,11 @@ body{
 .detail-table{font-size:11px;}
 .detail-table th, .detail-table td{padding:7px 8px;vertical-align:middle;}
 .detail-table td:first-child{font-weight:400;white-space:normal;min-width:170px;}
+.detail-table thead th{background:var(--card2);}
+.detail-group-head{color:var(--text-dim);font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;font-weight:700;text-align:center;}
+.detail-group-border{border-left:1px solid var(--border);}
+.detail-bar-track{width:26px;height:4px;border-radius:3px;background:var(--border);display:inline-block;position:relative;overflow:hidden;}
+.detail-bar-fill{position:absolute;left:0;top:0;height:100%;border-radius:3px;}
 .div-table td:first-child{font-weight:700;color:var(--text);}
 .kpi-subgroup{margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-soft);}
 .kpi-subgroup-title{font-size:9px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:4px;}
@@ -455,7 +460,7 @@ body{
         <div class="card" style="padding:0;">
           <div class="table-scroll"><table class="mini-table div-wide-table detail-table" id="resumenCompTable"></table></div>
         </div>
-        <div class="footer-note" style="text-align:left;padding:8px 4px 0;">¹ Sin captura día a día en la fuente: "Al" y Δ MTD/YTD muestran el cierre de Junio, por eso Δ Día y Δ WTD quedan en "—". Δ WTD compara contra el cierre del jueves que abrió la semana en curso (semana laboral Vie-Jue) · "PPTO Jul Ac." es la meta de nivel a fin de mes (solo saldos) · Cifras monetarias en millones de pesos (MDP).</div>
+        <div class="footer-note" style="text-align:left;padding:8px 4px 0;">¹ KPI que no existe en la fuente (sin captura, ni mensual ni diaria): solo se muestra la meta (PPTO) · ² Sin captura día a día en la fuente: "Al" y Δ MTD/YTD muestran el cierre de Junio, por eso Δ Día y Δ WTD quedan en "—". Δ WTD compara contra el cierre del jueves que abrió la semana en curso (semana laboral Vie-Jue) · "PPTO Jul Ac." es la meta de nivel a fin de mes (solo saldos) · Cifras monetarias en millones de pesos (MDP).</div>
       </section>
 
       <!-- ===================== CLIENTES ===================== -->
@@ -1054,10 +1059,21 @@ function detailMembersFor(negId){
 /* ============================================================
    RENGLONES DE LA TABLA "INDICADORES DETALLADOS"
    (misma tabla que en el PPTX ejecutivo). special:'noReal' = KPI que no
-   existe en la fuente (Primas): solo se muestran las metas. dailyUsable:
-   false = no hay captura diaria confiable para ese KPI (AUM Total en la
-   fuente diaria no trae offshore, ver nota); se usa el ultimo cierre
-   mensual (Junio) como "Al" en vez del dato de hoy.
+   existe en la fuente (Primas): solo se muestran las metas.
+   Nota historica: "AUM Total" tuvo por un tiempo dailyUsable:false porque
+   se sospechaba que el KPI '4_AUM' en la captura diaria no traia offshore.
+   Validado contra la fuente (RAW_DATA y DAILY_DATA, todas las bancas y
+   fechas): '4_AUM' y '4.3_Totales_Onshore' son el mismo valor (diferencia
+   de redondeo <0.03 en TODOS los casos) -- no existe un componente
+   offshore distinto que la captura diaria este perdiendo. Por eso ya usa
+   captura diaria real igual que el resto de los renglones.
+   "AUM Offshore" SI tiene dailyUsable:false real (no un supuesto): el KPI
+   '4.2_Totales_Offshore' no existe en absoluto en DAILY_DATA (solo en el
+   cierre mensual), y ese cierre mensual (Real) esta practicamente en $0 en
+   todas las bancas y meses, mientras que el PPTO si presupuesta un monto
+   real (~$21-23k MDP/mes en Banca Privada) -- se deja visible como su
+   propio renglon para que se vea explicitamente el hueco entre PPTO y Real,
+   en vez de que se diluya dentro del % de cumplimiento de "AUM Total".
    ============================================================ */
 const DETAIL_ROWS = [
   { label:'Clientes Totales', indent:0, unit:'clientes', dec:0, metricKey:'clientesTotales', bold:true },
@@ -1067,8 +1083,9 @@ const DETAIL_ROWS = [
   { label:'Nuevos', indent:1, unit:'clientes', dec:0, metricKey:'nuevos' },
   { label:'Reactivados', indent:1, unit:'clientes', dec:0, metricKey:'reactivados' },
   { label:'Salidas', indent:1, unit:'clientes', dec:0, metricKey:'salidas' },
-  { label:'AUM Total', indent:0, unit:'MDP', dec:0, metricKey:'aumTotal', bold:true, dailyUsable:false },
+  { label:'AUM Total', indent:0, unit:'MDP', dec:0, metricKey:'aumTotal', bold:true },
   { label:'AUM Onshore', indent:1, unit:'MDP', dec:0, metricKey:'onshore' },
+  { label:'AUM Offshore', indent:1, unit:'MDP', dec:0, metricKey:'offshore', dailyUsable:false },
   { label:'Traspasos AUM', indent:1, unit:'MDP', dec:0, metricKey:'traspasosAUM' },
   { label:'NNA', indent:1, unit:'MDP', dec:0, metricKey:'nna', bold:true },
   { label:'Fondos', indent:0, unit:'MDP', dec:0, metricKey:'fondos', bold:true },
@@ -1976,7 +1993,7 @@ function buildExecutivePptx(){
     }
     function pptxAlCell(val, unit, bold){
       if(val==null) return { text:'—', options:{ color:DIM, fontSize:8.5, align:'center', valign:'middle', bold:!!bold } };
-      return { text:fmtUnit(val, unit), options:{ color:WHITE, fontSize:8.5, align:'center', valign:'middle', bold:!!bold } };
+      return { text:fmtUnit(val, unit), options:{ color: bold?WHITE:DIM, fontSize:8.5, align:'center', valign:'middle', bold:!!bold } };
     }
     const DETAIL_SLIDE_NEGS = [
       { id:'bp',  label:'Banca Privada' },
@@ -1986,24 +2003,45 @@ function buildExecutivePptx(){
     ];
     const alDateTxtPptx = dailyDateLabel(DAILY_DATES.latest);
     const detailColW = [2.6,0.5,1.12,0.8,0.8,0.8,0.8,0.72,0.8,0.8,0.72,0.95,0.72];
-    const detailHeaderRowH = 0.34, detailBodyRowH = 0.275;
+    // Encabezado en 2 filas: la 1a agrupa MES A LA FECHA / AÑO A LA FECHA /
+    // NIVEL con colspan (Indicador/Tipo/Al/Día/WTD usan rowspan para no
+    // duplicarse), la 2a trae las sub-etiquetas de cada grupo.
+    const detailHeaderRowH1 = 0.24, detailHeaderRowH2 = 0.24;
+    const detailHeaderRowH = detailHeaderRowH1 + detailHeaderRowH2;
+    // Fila adaptable para que agregar renglones (p.ej. AUM Offshore) nunca
+    // choque con el pie de pagina fijo en y:7.13 (mismo criterio que la
+    // tabla de Avance por Division).
+    const detailBodyRowH = Math.min(0.275, (7.13-1.3-detailHeaderRowH-0.55)/DETAIL_ROWS.length);
     DETAIL_SLIDE_NEGS.forEach(dn=>{
       const slide = pptx.addSlide();
       bgSlide(slide);
       slide.addText([{text:'Indicadores ', options:{color:WHITE}}, {text:'Detallados', options:{color:GOLD, italic:true}}],
         { x:0.6, y:0.4, w:9, h:0.5, fontFace:FONT_HEAD, fontSize:24, bold:true });
-      slide.addText(dn.label+'   ·   Corte diario: '+alDateTxtPptx+'  ·  Cierre mensual: '+monthLabel('2026-06'),
+      slide.addText(dn.label+'   ·   Corte diario: '+alDateTxtPptx,
         { x:0.6, y:0.88, w:12, h:0.3, fontFace:FONT_BODY, fontSize:11, color:DIM });
 
-      const headerLabels = ['INDICADOR','TIPO','AL '+alDateTxtPptx.toUpperCase(),'Δ DÍA','Δ WTD','Δ MTD','Δ PPTO','% LOGRO','Δ YTD','Δ PPTO','% LOGRO','PPTO JUL AC.','% LOGRO'];
-      const headerRow = headerLabels.map(t=>({ text:t, options:{ fill:{color:CARD2}, color:GOLD, bold:true, fontSize:8, align:'center', valign:'middle' } }));
-      const rows = [headerRow];
+      const rowSpanCell = t=>({ text:t, options:{ rowspan:2, fill:{color:CARD2}, color:GOLD, bold:true, fontSize:8, align:'center', valign:'middle' } });
+      const groupCell = (t,span)=>({ text:t, options:{ colspan:span, fill:{color:CARD2}, color:DIM, bold:true, fontSize:7.5, align:'center', valign:'middle' } });
+      const subCell = t=>({ text:t, options:{ fill:{color:CARD2}, color:GOLD, bold:true, fontSize:8, align:'center', valign:'middle' } });
+      const headerRow1 = [
+        rowSpanCell('INDICADOR'), rowSpanCell('TIPO'), rowSpanCell('AL '+alDateTxtPptx.toUpperCase()),
+        rowSpanCell('Δ DÍA'), rowSpanCell('Δ WTD'),
+        groupCell('MES A LA FECHA', 3), groupCell('AÑO A LA FECHA', 3), groupCell('NIVEL (JUL AC.)', 2),
+      ];
+      const headerRow2 = [
+        subCell('Δ MTD'), subCell('PPTO'), subCell('LOGRO'),
+        subCell('Δ YTD'), subCell('PPTO'), subCell('LOGRO'),
+        subCell('PPTO'), subCell('LOGRO'),
+      ];
+      const rows = [headerRow1, headerRow2];
       DETAIL_ROWS.forEach(row=>{
         const m = METRICS[row.metricKey];
         const v = detailRowValues(row, dn.id);
-        const labelTxt = (row.indent?'    ':'')+m.label+(v.hasDaily?'':' ¹');
+        const supTxt = row.special==='noReal' ? ' ¹' : (row.dailyUsable===false ? ' ²' : '');
+        const labelTxt = (row.indent?'    ':'')+m.label+supTxt;
+        const labelColor = row.bold ? WHITE : DIM;
         rows.push([
-          { text:labelTxt, options:{ color:WHITE, fontSize:8.5, bold:!!row.bold, align:'left', valign:'middle' } },
+          { text:labelTxt, options:{ color:labelColor, fontSize:8.5, bold:!!row.bold, align:'left', valign:'middle' } },
           { text: row.unit==='MDP'?'$M':'#', options:{ color:DIM, fontSize:8, align:'center', valign:'middle' } },
           pptxAlCell(v.al, row.unit, row.bold),
           pptxDeltaCell(v.dtd, row.unit),
@@ -2020,11 +2058,11 @@ function buildExecutivePptx(){
       });
 
       slide.addTable(rows, { x:0.6, y:1.3, w:12.13, colW:detailColW,
-        rowH:[detailHeaderRowH, ...Array(DETAIL_ROWS.length).fill(detailBodyRowH)],
+        rowH:[detailHeaderRowH1, detailHeaderRowH2, ...Array(DETAIL_ROWS.length).fill(detailBodyRowH)],
         border:{ type:'solid', color:BORDER, pt:0.5 }, fill:{color:CARD}, autoPage:false });
 
       const noteY = 1.3 + detailHeaderRowH + detailBodyRowH*DETAIL_ROWS.length + 0.1;
-      slide.addText('¹ Sin captura diaria: "Al"/Δ MTD/YTD muestran cierre de Junio, Δ Día y Δ WTD quedan en "—" · Δ WTD vs. cierre del jueves anterior · "PPTO Jul Ac." es meta de nivel a fin de mes · Cifras en MDP.',
+      slide.addText('¹ KPI sin captura en la fuente (ni mensual ni diaria): solo se muestra la meta (PPTO) · ² Sin captura diaria: "Al"/Δ MTD/YTD muestran cierre de Junio, Δ Día y Δ WTD quedan en "—" · Δ WTD vs. cierre del jueves anterior · "PPTO Jul Ac." es meta de nivel a fin de mes · Cifras en MDP.',
         { x:0.6, y:noteY, w:12.13, h:0.3, fontFace:FONT_BODY, fontSize:7.5, color:DIM, italic:true });
 
       addFooter(slide, 'Indicadores Detallados · '+dn.label);
@@ -2518,23 +2556,32 @@ function renderResumen(){
    ============================================================ */
 function detailDeltaCell(val, unit, opts){
   opts = opts || {};
-  if(val==null) return '<td class="num" style="text-align:center;color:var(--text-faint);">—</td>';
+  const gb = opts.groupBorder ? 'border-left:1px solid var(--border);' : '';
+  if(val==null) return `<td class="num" style="text-align:center;color:var(--text-faint);${gb}">—</td>`;
   const color = val>0.0001 ? 'var(--green)' : (val<-0.0001 ? 'var(--red)' : 'var(--text-faint)');
   const txt = (val>0?'+':'')+fmtUnit(val, unit);
-  return `<td class="num" style="text-align:center;color:${color};${opts.bold?'font-weight:700;':''}">${txt}</td>`;
+  return `<td class="num" style="text-align:center;color:${color};${opts.bold?'font-weight:700;':''}${gb}">${txt}</td>`;
 }
-function detailPptoCell(val, unit){
-  if(val==null) return '<td class="num" style="text-align:center;color:var(--text-faint);">—</td>';
-  return `<td class="num" style="text-align:center;color:var(--text-faint);font-weight:500;">${fmtUnit(val, unit)}</td>`;
+function detailPptoCell(val, unit, opts){
+  opts = opts || {};
+  const gb = opts.groupBorder ? 'border-left:1px solid var(--border);' : '';
+  if(val==null) return `<td class="num" style="text-align:center;color:var(--text-faint);${gb}">—</td>`;
+  return `<td class="num" style="text-align:center;color:var(--text-faint);font-weight:500;${gb}">${fmtUnit(val, unit)}</td>`;
 }
 function detailPctCell(val){
   if(val==null) return '<td class="num" style="text-align:center;color:var(--text-faint);">—</td>';
   const color = val>=98 ? 'var(--green)' : val>=90 ? 'var(--gold)' : 'var(--red)';
-  return `<td class="num" style="text-align:center;color:${color};font-weight:700;">${fmtNum(val,1)}%</td>`;
+  const pct = Math.max(0, Math.min(100, val));
+  return `<td class="num" style="text-align:center;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+      <span style="color:${color};font-weight:700;">${fmtNum(val,1)}%</span>
+      <span class="detail-bar-track"><span class="detail-bar-fill" style="width:${pct}%;background:${color};"></span></span>
+    </div>
+  </td>`;
 }
 function detailAlCell(val, unit, bold){
   if(val==null) return `<td class="num" style="text-align:center;${bold?'font-weight:700;':''}color:var(--text-faint);">—</td>`;
-  return `<td class="num" style="text-align:center;${bold?'font-weight:700;color:#fff;':''}">${fmtUnit(val, unit)}</td>`;
+  return `<td class="num" style="text-align:center;${bold?'font-weight:700;color:#fff;':'color:var(--text-dim);'}">${fmtUnit(val, unit)}</td>`;
 }
 function renderResumenDetailTable(){
   const negId = state.negocio;
@@ -2547,37 +2594,48 @@ function renderResumenDetailTable(){
     if(compNoteEl) compNoteEl.textContent = 'Sin PPTO cargado para este negocio todavía';
     return;
   }
-  if(compNoteEl) compNoteEl.textContent = 'Corte diario: '+alDateTxt+' (Δ Día vs. '+dailyDateLabel(DAILY_DATES.prev)+' · Δ WTD vs. cierre semanal '+dailyDateLabel(DAILY_DATES.wtdBase)+') · Cierre mensual: '+monthLabel('2026-06');
+  if(compNoteEl) compNoteEl.textContent = 'Corte diario: '+alDateTxt+' (Δ Día vs. '+dailyDateLabel(DAILY_DATES.prev)+' · Δ WTD vs. cierre semanal '+dailyDateLabel(DAILY_DATES.wtdBase)+')';
   const rowsHtml = DETAIL_ROWS.map(row=>{
     const m = METRICS[row.metricKey];
     const v = detailRowValues(row, negId);
     const indentPx = row.indent ? 18 : 0;
-    const labelTxt = (row.indent?'&nbsp;&nbsp;&nbsp;&nbsp;':'')+m.label+(v.hasDaily?'':' ¹');
+    const supTxt = row.special==='noReal' ? ' ¹' : (row.dailyUsable===false ? ' ²' : '');
+    const labelTxt = (row.indent?'&nbsp;&nbsp;&nbsp;&nbsp;':'')+m.label+supTxt;
+    const labelColor = row.bold ? 'color:var(--text);' : 'color:var(--text-dim);';
     return `<tr>
-      <td style="text-align:center;padding-left:${indentPx}px;${row.bold?'font-weight:700;color:var(--text);':''}">${labelTxt}</td>
+      <td style="text-align:center;padding-left:${indentPx}px;${row.bold?'font-weight:700;':''}${labelColor}">${labelTxt}</td>
       <td style="text-align:center;color:var(--text-faint);font-size:10.5px;">${row.unit==='MDP'?'$M':'#'}</td>
       ${detailAlCell(v.al, row.unit, row.bold)}
       ${detailDeltaCell(v.dtd, row.unit)}
       ${detailDeltaCell(v.wtd, row.unit)}
-      ${detailDeltaCell(v.mtd, row.unit, {bold:row.bold})}
+      ${detailDeltaCell(v.mtd, row.unit, {bold:row.bold, groupBorder:true})}
       ${detailPptoCell(v.pptomtd, row.unit)}
       ${detailPctCell(v.logromtd)}
-      ${detailDeltaCell(v.ytd, row.unit)}
+      ${detailDeltaCell(v.ytd, row.unit, {groupBorder:true})}
       ${detailPptoCell(v.pptoytd, row.unit)}
       ${detailPctCell(v.logroytd)}
-      ${detailPptoCell(v.pptolvl, row.unit)}
+      ${detailPptoCell(v.pptolvl, row.unit, {groupBorder:true})}
       ${detailPctCell(v.logrolvl)}
     </tr>`;
   }).join('');
   wrapEl.innerHTML = `
-    <thead><tr>
-      <th style="text-align:center;">Indicador</th><th style="text-align:center;">Tipo</th>
-      <th style="text-align:center;">AL ${alDateTxt.toUpperCase()}</th>
-      <th style="text-align:center;">Δ DÍA</th><th style="text-align:center;">Δ WTD</th>
-      <th style="text-align:center;">Δ MTD</th><th style="text-align:center;">Δ PPTO</th><th style="text-align:center;">% LOGRO</th>
-      <th style="text-align:center;">Δ YTD</th><th style="text-align:center;">Δ PPTO</th><th style="text-align:center;">% LOGRO</th>
-      <th style="text-align:center;">PPTO JUL AC.</th><th style="text-align:center;">% LOGRO</th>
-    </tr></thead>
+    <thead>
+    <tr>
+      <th rowspan="2" style="text-align:center;">Indicador</th>
+      <th rowspan="2" style="text-align:center;">Tipo</th>
+      <th rowspan="2" style="text-align:center;">AL ${alDateTxt.toUpperCase()}</th>
+      <th rowspan="2" style="text-align:center;">Δ DÍA</th>
+      <th rowspan="2" style="text-align:center;">Δ WTD</th>
+      <th colspan="3" style="text-align:center;" class="detail-group-head">MES A LA FECHA</th>
+      <th colspan="3" style="text-align:center;" class="detail-group-head detail-group-border">AÑO A LA FECHA</th>
+      <th colspan="2" style="text-align:center;" class="detail-group-head detail-group-border">NIVEL (JUL AC.)</th>
+    </tr>
+    <tr>
+      <th style="text-align:center;">Δ MTD</th><th style="text-align:center;">PPTO</th><th style="text-align:center;">Logro</th>
+      <th style="text-align:center;" class="detail-group-border">Δ YTD</th><th style="text-align:center;">PPTO</th><th style="text-align:center;">Logro</th>
+      <th style="text-align:center;" class="detail-group-border">PPTO</th><th style="text-align:center;">Logro</th>
+    </tr>
+    </thead>
     <tbody>${rowsHtml}</tbody>`;
 }
 
