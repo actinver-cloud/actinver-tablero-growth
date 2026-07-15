@@ -485,6 +485,12 @@ body{
             <select id="negocioSelect"></select>
           </div>
         </div>
+        <div id="divisionFilterControls" style="display:none;">
+          <div class="seg" id="divisionSharedFidNnaSeg" title="El NNA de Fiduciario mide movimientos brutos de vehículos fiduciarios (su acumulado supera el AUM total del negocio), no dinero nuevo neto comparable al resto. Ajustado = excluido de las sumas · Con Fiduciario = dato crudo de la fuente."></div>
+          <div class="select-wrap">
+            <select id="divisionSharedBancaSelect"></select>
+          </div>
+        </div>
         <label class="btn-upload" title="Selecciona hasta 3 CSVs a la vez (Ctrl+clic): Acumulado Negocios (BANCA, FECHA, Orden, Categoria_Principal, KPI, TOTALES -- el mes en curso debe traer 3 fechas: jueves de referencia fijo, día anterior, día más reciente), Avance por División (con columna MES) y Cartera de Crédito. El tablero detecta cada uno solo por sus encabezados.">
           Actualizar datos (CSV)
           <input type="file" id="fileInput" accept=".csv" multiple style="display:none;">
@@ -671,12 +677,6 @@ body{
         <div class="division-filters">
           <div class="seg" id="divisionPeriodSeg"></div>
           <div class="seg" id="divisionMonthSeg"></div>
-          <div class="select-wrap">
-            <select id="divisionNegocioSelect"></select>
-          </div>
-          <div class="select-wrap">
-            <select id="divisionMetricSelect"></select>
-          </div>
         </div>
         <div class="division-note" id="divisionAvailNote"></div>
 
@@ -718,11 +718,7 @@ body{
           <div class="seg" id="asesorPeriodSeg"></div>
         </div>
         <div class="division-filters" style="margin-bottom:10px;">
-          <div class="seg" id="asesorFidNnaSeg"></div>
-        </div>
-        <div class="division-filters" id="asesorBancaFilterPills" style="margin-bottom:10px;"></div>
-        <div class="division-filters" style="margin-bottom:10px;">
-          <input type="text" id="asesorSearchInput" placeholder="Buscar banca, división, centro o número de nómina..." style="width:100%;max-width:420px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
+          <input type="text" id="asesorSearchInput" placeholder="Buscar división, centro o número de nómina..." style="width:100%;max-width:420px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;">
         </div>
         <div class="card" style="padding:0;">
           <div class="table-scroll"><table class="mini-table div-table div-matrix-table" id="asesorMetricsTable"></table></div>
@@ -731,9 +727,6 @@ body{
         <div class="section-head"><h2>Indicadores Detallados</h2><span id="divDetailDateNote"></span></div>
         <div class="division-note">Combina el avance real diario/semanal (a nivel asesor) con el PPTO mensual ya cargado por Centro Financiero. Clientes Activos, AUM, Seguros Nuevos y Clientes Nuevos aún no tienen PPTO a este nivel -- se agrega cuando el equipo lo entregue.</div>
         <div class="division-filters" id="divDetailFilterRow" style="margin-top:10px;"></div>
-        <div class="division-filters" style="margin-bottom:10px;">
-          <div class="seg" id="divDetailFidNnaSeg"></div>
-        </div>
         <div class="card" style="padding:0;">
           <div class="table-scroll"><table class="mini-table div-table div-matrix-table" id="divisionDetailTable"></table></div>
         </div>
@@ -2200,9 +2193,14 @@ function updateTopbarForTab(){
   const isDivision = state.tab === 'division';
   const globalWrap = document.getElementById('globalFilterControls');
   if(globalWrap) globalWrap.style.display = isDivision ? 'none' : 'contents';
+  const divWrap = document.getElementById('divisionFilterControls');
+  if(divWrap) divWrap.style.display = isDivision ? 'contents' : 'none';
   if(!isDivision){
     buildMetaModeSeg();
     buildFidNnaSeg();
+  } else {
+    buildDivSharedBancaPills();
+    buildDivSharedFidNnaSeg();
   }
 }
 document.querySelectorAll('.nav-item').forEach(item=>{
@@ -3816,11 +3814,20 @@ function divPptoSumForMonth(month, filters, divField){
    ver fmtDivUnit/DIV_METRICS) mientras que ASESOR_DATA ya viene en MDP --
    se divide entre 1e6 aqui para que ambas fuentes queden en las mismas
    unidades antes de comparar real vs. PPTO. */
+/* PPTO desactivado a proposito: DIVISION_DATA es el archivo viejo (congelado
+   en julio) que el usuario ya no va a volver a subir. El PPTO real vendra en
+   un archivo nuevo con la misma estructura del CSV de asesor -- cuando llegue,
+   basta con poner esta bandera en true (o reemplazar su fuente) para
+   reactivar todo el PPTO/Cumplimiento/GAP de la pestaña Division sin tocar
+   el resto del codigo (ver divPptoMes/divPptoYtd/divPptoForPeriod). */
+const PPTO_DIVISION_ENABLED = false;
 function divPptoMes(filters, divField, unit){
+  if(!PPTO_DIVISION_ENABLED) return null;
   const v = divPptoSumForMonth(ASESOR_LATEST_MONTH, filters, divField);
   return (v!=null && unit==='MDP') ? v/1e6 : v;
 }
 function divPptoYtd(filters, divField, unit){
+  if(!PPTO_DIVISION_ENABLED) return null;
   if(!divField) return null;
   let total = 0, any = false;
   DIV_MONTHS.filter(m=>m<=ASESOR_LATEST_MONTH).forEach(m=>{
@@ -3875,6 +3882,7 @@ function divRealSum(filters, divMetricKey, monthStr, period){
   return ASESOR_METRICS[asesorKey].unit==='MDP' ? v*1e6 : v;
 }
 function divPptoForPeriod(filters, divField, monthStr, period){
+  if(!PPTO_DIVISION_ENABLED) return null;
   if(!divField) return null;
   if(period==='mes') return divPptoSumForMonth(monthStr, filters, divField);
   let total = 0, any = false;
@@ -3886,7 +3894,9 @@ function divPptoForPeriod(filters, divField, monthStr, period){
 }
 
 const divDetailState = { banca:'todas', division:'todas', centro:'todas', numNomina:'todas' };
-const DIV_DETAIL_LEVELS = ['banca','division','centro','numNomina'];
+// 'banca' ya no tiene su propio <select>: se sincroniza con el filtro
+// compartido de banca de toda la pestaña (divState.negocio) en cada render.
+const DIV_DETAIL_LEVELS = ['division','centro','numNomina'];
 const DIV_DETAIL_LABELS = { banca:'Banca', division:'División', centro:'Centro Financiero', numNomina:'Asesor (Núm. Nómina)' };
 
 function fmtDivDetailNum(v, unit){
@@ -3924,7 +3934,7 @@ function divDetailBand(cump){
    funciones asesorMatch/asesorOptions/asesorSumAt/asesorPeriodValues ya
    definidas arriba (compartidas con la tabla "Indicadores Detallados").
    ============================================================ */
-const asesorState = { period:'acumulado', bancaFilter:'todas', search:'',
+const asesorState = { period:'acumulado', search:'',
   expandedBanca:{}, expandedDivision:{}, expandedCentro:{} };
 const ASESOR_PERIOD_FIELD = { dia:'dtd', semana:'wtd', mes:'mtd', acumulado:'ytd' };
 
@@ -3954,33 +3964,11 @@ function buildAsesorPeriodSeg(){
     btn.addEventListener('click', ()=>{ asesorState.period = btn.dataset.p; buildAsesorPeriodSeg(); renderAsesorDrill(); });
   });
 }
-function buildAsesorFidNnaSeg(){
-  const el = document.getElementById('asesorFidNnaSeg');
-  if(!el) return;
-  const modes = [[true,'NNA ajustado'],[false,'NNA con Fiduciario']];
-  el.innerHTML = modes.map(([v,lbl])=>`<button data-v="${v}" class="${v===state.excludeFidNNA?'active':''}">${lbl}</button>`).join('');
-  el.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ state.excludeFidNNA = (btn.dataset.v==='true'); buildAsesorFidNnaSeg(); renderAsesorDrill(); if(typeof buildFidNnaSeg==='function') buildFidNnaSeg(); if(typeof buildDivDetailFidNnaSeg==='function') buildDivDetailFidNnaSeg(); if(typeof renderDivisionDetailTable==='function') renderDivisionDetailTable(); if(typeof renderAll==='function') renderAll(); });
-  });
-}
-function buildAsesorBancaPills(){
-  const el = document.getElementById('asesorBancaFilterPills');
-  if(!el) return;
-  const bancas = asesorOptions('banca', {});
-  const pills = [['todas','Todas'], ...bancas.map(b=>[b,b])];
-  el.innerHTML = pills.map(([v,lbl])=>`<button type="button" class="div-slicer-pill ${v===asesorState.bancaFilter?'active':''}" data-v="${v}">${lbl}</button>`).join('');
-  el.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ asesorState.bancaFilter = btn.dataset.v; renderAsesorDrill(); });
-  });
-}
-
 function renderAsesorDrill(){
   const tbl = document.getElementById('asesorMetricsTable');
   if(!tbl) return; // seccion no presente (version vieja del HTML)
 
   buildAsesorPeriodSeg();
-  buildAsesorFidNnaSeg();
-  buildAsesorBancaPills();
 
   const searchInput = document.getElementById('asesorSearchInput');
   if(searchInput && !searchInput.dataset.wired){
@@ -3996,7 +3984,7 @@ function renderAsesorDrill(){
 
   const field = ASESOR_PERIOD_FIELD[asesorState.period];
   const searchTerm = (asesorState.search||'').trim().toLowerCase();
-  const rootFilters = asesorState.bancaFilter==='todas' ? {} : {banca: asesorState.bancaFilter};
+  const rootFilters = divState.negocio==='todas' ? {} : {banca: divState.negocio};
 
   function rowCells(filters){
     return ASESOR_METRIC_ORDER.map(k=>{
@@ -4081,13 +4069,33 @@ function renderAsesorDrill(){
   });
 }
 
-function buildDivDetailFidNnaSeg(){
-  const el = document.getElementById('divDetailFidNnaSeg');
+/* ---- Filtros compartidos de TODA la pestaña División (banca + NNA
+   Fiduciario): antes cada tabla (Resumen Divisional, Avance Real por
+   Asesor, Indicadores Detallados) traía su propio selector de banca y su
+   propio toggle de NNA -- quedaba repetido 3 veces y confundía. Ahora hay
+   un solo control arriba (divState.negocio + state.excludeFidNNA,
+   compartido) del que heredan todas las secciones. ---- */
+const ALL_BANCAS = ['todas', ...asesorOptions('banca', {})];
+const BANCA_LABELS = {'todas':'Todas (Consolidado)', 'BANCA PRIVADA':'Banca Privada','PATRIMONIAL':'Patrimonial','WEALTH MANAGEMENT':'Wealth Management','WEALTH MANAGMENT':'Wealth Management','Externos':'Externos','Fiduciario':'Fiduciario'};
+/* Mismo estilo que el <select id="negocioSelect"> del topbar de Resumen
+   Ejecutivo (en vez de pildoras) para que el filtro de banca se vea y se
+   sienta igual en las dos pestañas. */
+function buildDivSharedBancaPills(){
+  const el = document.getElementById('divisionSharedBancaSelect');
+  if(!el) return;
+  el.innerHTML = ALL_BANCAS.map(v=>`<option value="${v}" ${v===divState.negocio?'selected':''}>${BANCA_LABELS[v]||v}</option>`).join('');
+  if(!el.dataset.wired){
+    el.addEventListener('change', ()=>{ divState.negocio = el.value; renderDivision(); });
+    el.dataset.wired = '1';
+  }
+}
+function buildDivSharedFidNnaSeg(){
+  const el = document.getElementById('divisionSharedFidNnaSeg');
   if(!el) return;
   const modes = [[true,'NNA ajustado'],[false,'NNA con Fiduciario']];
   el.innerHTML = modes.map(([v,lbl])=>`<button data-v="${v}" class="${v===state.excludeFidNNA?'active':''}">${lbl}</button>`).join('');
   el.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ state.excludeFidNNA = (btn.dataset.v==='true'); buildDivDetailFidNnaSeg(); renderDivisionDetailTable(); if(typeof buildFidNnaSeg==='function') buildFidNnaSeg(); if(typeof buildAsesorFidNnaSeg==='function') buildAsesorFidNnaSeg(); if(typeof renderAsesorDrill==='function') renderAsesorDrill(); if(typeof renderAll==='function') renderAll(); });
+    btn.addEventListener('click', ()=>{ state.excludeFidNNA = (btn.dataset.v==='true'); buildDivSharedFidNnaSeg(); if(typeof buildFidNnaSeg==='function') buildFidNnaSeg(); if(typeof renderAll==='function') renderAll(); });
   });
 }
 function divDetailLevelSelect(level){
@@ -4104,6 +4112,14 @@ function renderDivisionDetailTable(){
   const tbl = document.getElementById('divisionDetailTable');
   if(!tbl) return; // seccion no presente (version vieja del HTML)
 
+  // 'banca' hereda del filtro compartido de la pestaña (divState.negocio) en
+  // vez de tener su propio <select> -- si cambia, se resetean los niveles
+  // mas finos (division/centro/asesor) igual que antes al cambiar de banca.
+  if(divDetailState.banca !== divState.negocio){
+    divDetailState.banca = divState.negocio;
+    DIV_DETAIL_LEVELS.forEach(lv=>{ divDetailState[lv] = 'todas'; });
+  }
+
   const filterRow = document.getElementById('divDetailFilterRow');
   if(filterRow){
     filterRow.innerHTML = DIV_DETAIL_LEVELS.map(lv=>divDetailLevelSelect(lv)).join('');
@@ -4118,7 +4134,6 @@ function renderDivisionDetailTable(){
       });
     });
   }
-  buildDivDetailFidNnaSeg();
 
   const dateEl = document.getElementById('divDetailDateNote');
   if(dateEl){
@@ -4159,7 +4174,7 @@ function renderDivisionDetailTable(){
   tbl.innerHTML = head+'<tbody>'+rowsHtml+'</tbody>';
 }
 
-const divState = { negocio: DIV_NEGOCIOS[0], month: DIV_MONTHS.includes('2026-06') ? '2026-06' : DIV_MONTHS[DIV_MONTHS.length-1], metric: 'clientesNetos', rankMetric: 'clientesNetos', period: 'acumulado', centroFilter: 'todas', centroSearch: '', centroExpanded: {} };
+const divState = { negocio: 'todas', month: DIV_MONTHS.includes('2026-06') ? '2026-06' : DIV_MONTHS[DIV_MONTHS.length-1], metric: 'clientesNetos', rankMetric: 'clientesNetos', period: 'acumulado', centroFilter: 'todas', centroSearch: '', centroExpanded: {} };
 
 /* Sin nombre de unidad en texto (clientes, creditos, etc.): la etiqueta de
    la fila/card ya lo dice. Monetario se distingue con "$". */
@@ -4227,17 +4242,6 @@ function buildDivisionMonthSeg(){
     btn.addEventListener('click', ()=>{ divState.month = btn.dataset.m; buildDivisionMonthSeg(); renderDivision(); });
   });
 }
-function buildDivisionNegocioSelect(){
-  const el = document.getElementById('divisionNegocioSelect');
-  const LABELS = {'BANCA PRIVADA':'Banca Privada','PATRIMONIAL':'Patrimonial','WEALTH MANAGEMENT':'Wealth Management','WEALTH MANAGMENT':'Wealth Management','PERSONAL ACTINVER':'Personal Actinver','BANCA PARTNER':'Banca Partner'};
-  el.innerHTML = DIV_NEGOCIOS.map(n => `<option value="${n}" ${n===divState.negocio?'selected':''}>${LABELS[n]||n}</option>`).join('');
-  el.addEventListener('change', ()=>{ divState.negocio = el.value; renderDivision(); });
-}
-function buildDivisionMetricSelect(){
-  const el = document.getElementById('divisionMetricSelect');
-  el.innerHTML = Object.entries(DIV_METRICS).map(([k,m]) => `<option value="${k}" ${k===divState.metric?'selected':''}>${m.label}</option>`).join('');
-  el.addEventListener('change', ()=>{ divState.metric = el.value; renderDivision(); });
-}
 function buildDivWideMetricToggle(){
   const el = document.getElementById('divWideMetricToggle');
   el.innerHTML = Object.entries(DIV_METRICS).map(([k,m]) => `<button data-metric="${k}" class="${k===divState.metric?'active':''}">${m.label}</button>`).join('');
@@ -4283,9 +4287,10 @@ function buildDivisionCentroFilterPills(rows){
 
 function renderDivision(){
   // Real: ASESOR_DATA (se sigue actualizando con cada CSV nuevo del equipo).
-  // PPTO: DIVISION_DATA (congelado en julio), cruzado por Centro Financiero.
+  // PPTO: desactivado (PPTO_DIVISION_ENABLED), ver nota junto a esa bandera.
+  buildDivSharedBancaPills();
+  buildDivSharedFidNnaSeg();
   const asesorFiltersBase = { banca: divState.negocio };
-  const rows = divRowsForPeriod(divState.negocio, divState.month, divState.period); // solo para referencia de PPTO
   const periodTxt = divState.period==='mes' ? monthLabel(divState.month) : ('Ene→'+monthShort(divState.month));
   document.getElementById('divisionMonthLabel').textContent = 'Corte: '+monthLabel(divState.month);
   document.getElementById('divisionKpiPeriodLabel').textContent = periodTxt;
@@ -4294,8 +4299,8 @@ function renderDivision(){
   const notaEl = document.getElementById('divisionAvailNote');
   if(asesorCentrosCount===0){
     notaEl.textContent = 'Sin datos de avance real para este negocio todavía.';
-  } else if(rows.length===0){
-    notaEl.textContent = `${asesorCentrosCount} centros financieros con avance real (archivo del equipo), pero sin PPTO congelado para este negocio/periodo -- el PPTO ya no se actualiza, se quedó en julio.`;
+  } else if(!PPTO_DIVISION_ENABLED){
+    notaEl.textContent = `${asesorCentrosCount} centros financieros con datos, vista ${divState.period==='mes'?'de '+monthLabel(divState.month):'acumulada Ene→'+monthShort(divState.month)} -- PPTO pendiente (ver nota arriba).`;
   } else if(divState.month==='2026-07' || (divState.period==='acumulado' && DIV_MONTHS.includes('2026-07') && DIV_MONTHS.indexOf(divState.month)>=DIV_MONTHS.indexOf('2026-07'))){
     notaEl.textContent = 'Julio es el mes en curso: el PPTO (congelado) ya está cargado pero el real todavía está incompleto.';
   } else {
@@ -4311,20 +4316,21 @@ function renderDivision(){
     const real = divRealSum(asesorFiltersBase, key, divState.month, divState.period);
     const meta = divPptoForPeriod(asesorFiltersBase, m.ppto, divState.month, divState.period);
     const cump = divCumplimiento(real, meta);
-    const gap = real - meta;
-    const gapColor = gap>=0 ? 'var(--green)' : 'var(--red)';
+    const gap = meta!=null ? real - meta : null;
+    const gapColor = gap==null ? 'var(--text-faint)' : (gap>=0 ? 'var(--green)' : 'var(--red)');
     const cumpTxt = cump==null ? '—' : fmtNum(cump,1)+'%';
+    const tagTxt = meta==null ? 'SIN PPTO CARGADO' : ('PPTO · '+periodTxt);
     return `<div class="card kpi-card ${divTrendClass(cump)}" style="--accent:${m.color}">
       <div class="kpi-top">
         <div class="kpi-icon" style="background:${m.color}22;">${m.icon}</div>
-        <div class="kpi-tag">PPTO · ${periodTxt}</div>
+        <div class="kpi-tag">${tagTxt}</div>
       </div>
       <div class="kpi-value">${fmtDivUnit(real, m.unit, m.dec)}</div>
       <div class="kpi-label">${m.label}</div>
       <div class="kpi-meta-row" style="margin-top:10px;">
         <div class="kpi-meta-line"><span class="k">PPTO</span><span class="v">${fmtDivUnit(meta, m.unit, m.dec)}</span></div>
         <div class="kpi-meta-line"><span class="k">Cumplimiento</span><span class="v" style="color:${divBandColor(cump)};">${cumpTxt}</span></div>
-        <div class="kpi-meta-line"><span class="k">GAP vs. PPTO</span><span class="v" style="color:${gapColor};">${gap>=0?'+':''}${fmtDivUnit(gap, m.unit, m.dec)}</span></div>
+        <div class="kpi-meta-line"><span class="k">GAP vs. PPTO</span><span class="v" style="color:${gapColor};">${gap==null?'—':(gap>=0?'+':'')+fmtDivUnit(gap, m.unit, m.dec)}</span></div>
       </div>
     </div>`;
   }).join('');
@@ -4337,13 +4343,13 @@ function renderDivision(){
   buildDivWideMetricToggle();
   const selMetric = DIV_METRICS[divState.metric];
   const wideChartReal = divisiones.map(div=> divRealSum(Object.assign({},asesorFiltersBase,{division:div}), divState.metric, divState.month, divState.period));
-  const wideChartMeta = divisiones.map(div=> divPptoForPeriod(Object.assign({},asesorFiltersBase,{division:div}), selMetric.ppto, divState.month, divState.period) || 0);
+  const wideChartMeta = divisiones.map(div=> divPptoForPeriod(Object.assign({},asesorFiltersBase,{division:div}), selMetric.ppto, divState.month, divState.period));
+  const wideChartHasPpto = PPTO_DIVISION_ENABLED && wideChartMeta.some(v=>v!=null);
+  const wideChartDatasets = [{label:selMetric.label, data:wideChartReal, backgroundColor:selMetric.color}];
+  if(wideChartHasPpto) wideChartDatasets.push({label:'PPTO', data:wideChartMeta.map(v=>v||0), backgroundColor:'#4b5568'});
   chart('chartDivWide', {
     type:'bar',
-    data:{ labels: divisiones, datasets:[
-      {label:selMetric.label, data:wideChartReal, backgroundColor:selMetric.color},
-      {label:'PPTO', data:wideChartMeta, backgroundColor:'#4b5568'}
-    ]},
+    data:{ labels: divisiones, datasets: wideChartDatasets },
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:true}, tooltip:{callbacks:{label:c=>fmtDivUnit(c.parsed.y, selMetric.unit, selMetric.dec)}} },
       scales:{ x:{grid:{display:false}}, y:{grid:GRID, ticks:{callback:v=>fmtNum(v)}} } }
@@ -4720,7 +4726,6 @@ document.getElementById('fileInput').addEventListener('change', async function(e
   if(divisionUpdated && DIV_MONTHS.length){
     divState.month = DIV_MONTHS[DIV_MONTHS.length-1];
     buildDivisionMonthSeg();
-    buildDivisionNegocioSelect();
   }
   renderAll();
   alert(summary.join('\n'));
@@ -4736,8 +4741,8 @@ buildMetaModeSeg();
 buildFidNnaSeg();
 buildDivisionPeriodSeg();
 buildDivisionMonthSeg();
-buildDivisionNegocioSelect();
-buildDivisionMetricSelect();
+buildDivSharedBancaPills();
+buildDivSharedFidNnaSeg();
 buildDivisionCentroSearch();
 document.getElementById('topbarTitle').innerHTML = accentLastWord('Resumen Ejecutivo');
 styleSectionHeads();
